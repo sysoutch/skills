@@ -419,7 +419,7 @@ function configAuthorId() {
 }
 
 function resolveBoardId(explicit, usage) {
-  if (explicit !== undefined && String(explicit).trim() !== '') {
+  if (explicit != null && String(explicit).trim() !== '') {
     const id = Number(String(explicit).trim());
     if (!Number.isInteger(id)) fail(`${usage}: <board_id> must be a whole number`);
     return id;
