@@ -9,6 +9,7 @@ Use the section that matches what you're doing:
 - Starting, stopping, tokenizing, or using the local API → **Local API (`taskitty-api`)**
 - Creating, updating, commenting on, or deleting tasks in Taskitty → **Task management via the Taskitty CLI**
 - User asks to record completed work as a Taskitty task → **Recording completed work as a Taskitty task**
+- Exporting board/list/task state as Markdown, or using exports as session context → **Markdown export and memory-bank**
 
 ## Locating the Taskitty CLI
 
@@ -31,7 +32,12 @@ Both clients expose identical actions; the PowerShell client uses named paramete
 
 Rules that apply to every session:
 
-- Add a Taskitty task for the user's prompt: rephrase it into a concise title, add a description with more background information, assign 1 or more tags (create a new tag if no suitable one exists) and the fitting member(s) (`members` to list them; `create-member` if none fits), then do your work. Keep both current while working — update tags/members later when the task's scope changes. While working, use **normal comments** (`comment`) for progress updates; when you finish, update the task by adding a **finishing comment** — see *Recording completed work as a Taskitty task* for what it must cover.
+- Add **one or more** Taskitty tasks for the user's prompt: if one prompt contains several distinct pieces of work (multiple features, steps, deliverables), decompose it and create **one card per piece** — never cram multiple deliverables into a single task. For each card: rephrase it into a concise title, add a description with more background information, assign 1 or more tags (create a new tag if no suitable one exists) and the fitting member(s) (`members` to list them; `create-member` if none fits), mark the task as `doing` before you start working on the task, then do your work. Keep both current while working — update tags/members later when the task's scope changes.
+- Set **both a start date and a due date** (`start-date` / `due-date`) on every new card at creation time, unless there is an explicit reason not to (e.g. a pure backlog/idea card with no planned work window — say so in its description). Use ISO-8601 UTC datetimes; pick dates that reflect the real plan rather than placeholders.
+- Record **follow-up tasks** as well: when a prompt implies possible or likely follow-up work (next steps, deferred parts, things that depend on what you are doing now), create cards for those too and mention them alongside the main task(s) so the user sees the full scope. Put speculative ones in an ideas/backlog-style list if the board has one (ask which list otherwise), and note dependencies between related cards in their descriptions.
+- While working, use **normal comments** (`comment`) for progress updates; when you finish, update each task by adding a **finishing comment** — see *Recording completed work as a Taskitty task* for what it must cover.
+- Before starting work in a project that keeps a `memory-bank/`, read the exported board/list Markdown under `memory-bank/exports/` (refresh with `export-markdown --out ...` when stale) so you start from current board state instead of re-deriving it; keep hand-written memory-bank notes for context that cannot be derived from the board itself — see **Markdown export and memory-bank**.
+- If the task is done but needs to be verified, add a tag like `needs-verification` or `needs-review` and mention it in the finishing comment.
 - If the local API is not running, start it with `start` before recording work. Use `tags`, `create-tag`, `tag-task`, `untag-task`, `members`, `create-member`, `member-task`, and `unassign-member` through the CLI; do not skip tags or members because a command is missing—implement the scoped command first.
 
 ## Ground rules
@@ -67,6 +73,10 @@ node <folder>/taskitty-launcher.cjs project-config [directory] [--replace]   # w
 # Run `help` on the launcher for the full CRUD list; free-text args accept @file.
 ```
 
+start-date <task_id> "<ISO-8601 datetime>" | clear   # set/clear the card's start date (e.g. "2026-09-07T00:00:00.000Z")
+due-date <task_id> "<ISO-8601 datetime>" | clear     # set/clear the card's due date
+list-tasks <list_id>                      # list every task in a list (ids + names, with start/due dates when present)
+
 ### Token
 
 - Read `%APPDATA%\taskitty\api-token` without printing it (see Ground rules).
@@ -76,11 +86,11 @@ node <folder>/taskitty-launcher.cjs project-config [directory] [--replace]   # w
 
 The API defaults to Taskitty's persisted active workspace. Supply a `workspace` field only when it is already registered in the desktop workspace selector; arbitrary database paths are intentionally rejected.
 
-**Project-local database:** a project can declare its task documentation database in `taskitty.json` at the project root (a path registered in Taskitty's workspace selector). When documenting work on a project with such a config, target that database — not whatever workspace happens to be active globally. The CLI clients do this automatically when run from the project root (they read `./taskitty.json`'s `databasePath`) and accept an explicit override on any task action: `--workspace <path>` (`add 12 "Task name" --workspace C:\other\project.sqlite`; `-Workspace <path>` on the PowerShell client). Raw API request bodies take the same optional `"workspace": "<registered path>"` field. Precedence: explicit flag → cwd `taskitty.json` → the API's persisted active workspace. Generated configs also record `"boardId"` and `"boardName"` for the selected default documentation board; when run from a project root that has such a config, the clients' `tags`, `create-tag` and `board` actions default to it when no id is passed — so no guessing from `boards` is needed. An explicit numeric id always wins (`tags 1`), and an explicit `--workspace`/`-Workspace` override never inherits another project's board, because ids are per-workspace.
+**Project-local database:** a project can declare its task documentation database in `taskitty.json` at the project root (a path registered in Taskitty's workspace selector). When documenting work on a project with such a config, target that database — not whatever workspace happens to be active globally. The CLI clients do this automatically when run from the project root (they read `./taskitty.json`'s `databasePath`) and accept an explicit override on any task action: `--workspace <path>` (`add 12 "Task name" --workspace C:\other\project.sqlite`; `-Workspace <path>` on the PowerShell client). Raw API request bodies take the same optional `"workspace": "<registered path>"` field. Precedence: explicit flag → cwd `taskitty.json` → the API's persisted active workspace. Generated configs also record `"boardId"` and `"boardName"` for the selected default documentation board; when run from a project root that has such a config, the clients' `tags`, `create-tag` and `board` actions default to it when no id is passed — so no guessing from `boards` is needed. An explicit numeric id always wins (`tags 1`), and an explicit `--workspace`/`-Workspace` override never inherits another project's board, because ids are per-workspace. Generated configs can also record `"authorId"`/`"authorName"` for a default author; from such a project root the clients' `add` and `comment` actions attribute created tasks and comments to that member (an explicit override never inherits it either, because member ids are per-workspace).
 
-**Generate project config in the desktop UI:** in **Workspaces**, select the workspace, navigate to the project folder with the existing **Add existing database** folder browser, pick the project's default documentation board in the section's selector, then use **Link this project → Create taskitty.json here** (the config records it as `boardId`/`boardName`). Native confirmation is required for creation and replacement. This deliberately is not offered in browser mode: only desktop has the constrained, registry-validated filesystem command.
+**Generate project config in the desktop UI:** in **Workspaces**, select the workspace, navigate to the project folder with the existing **Add existing database** folder browser, pick the project's default documentation board and optionally a default author in the section's selectors, then use **Link this project → Create taskitty.json here** (the config records them as `boardId`/`boardName` / `authorId`/`authorName`). Native confirmation is required for creation and replacement. This deliberately is not offered in browser mode: only desktop has the constrained, registry-validated filesystem command.
 
-**Generate project config from the CLI:** `<t> project-config [directory] [--replace] [--board-id N --board-name "name"]` (PowerShell client: `-Replace`/`-BoardId`/`-BoardName`) asks the API to write a registry-validated `taskitty.json` into an existing folder — default is the current directory. Without `--workspace`, it links to the API's active workspace; replacing an existing file requires `--replace`.
+**Generate project config from the CLI:** `<t> project-config [directory] [--replace] [--board-id N --board-name "name"] [--author-id N --author-name "name"]` (PowerShell client: `-Replace`/`-BoardId`/`-BoardName`/`-AuthorId`/`-AuthorName`) asks the API to write a registry-validated `taskitty.json` into an existing folder — default is the current directory. Without `--workspace`, it links to the API's active workspace; replacing an existing file requires `--replace`.
 
 ## Task management via the Taskitty CLI
 
@@ -113,10 +123,12 @@ All Taskitty API operations should go through the CLI:
 <t> create-member "name" [description]               # create a member, prints its id
 <t> member-task <task_id> <member_id>                # assign member to task (no-op if already assigned)
 <t> unassign-member <task_id> <member_id>            # remove member from task
+<t> board-member <board_id> <member_id>              # assign member to a board (no-op if already assigned)
+<t> unassign-board-member <board_id> <member_id>     # remove member from a board
 <t> boards                                           # list all boards
 <t> create-board "Project board" "Optional description"
 <t> create-list <board_id> "Backlog"
-<t> project-config [directory] [--replace] [--board-id N --board-name "name"]  # write taskitty.json via the API (default directory: cwd)
+<t> project-config [directory] [--replace] [--board-id N --board-name "name"] [--author-id N --author-name "name"]  # write taskitty.json via the API (default directory: cwd)
 <t> delete-board <board_id>
 <t> board <board_id>                                 # show board details + lists
 <t> task <task_id>                                   # show one task incl. its comment ids
@@ -142,6 +154,8 @@ Always refetch the board (`board <id>`) after marking done/doing/on-hold when pl
 
 ### Creating a task
 
+For a prompt that contains several pieces of work, create one card per piece (see **Session workflow**) and repeat steps 4–6 for each; record implied follow-up work as its own card(s) too.
+
 1. Run `boards` to see available boards.
 2. Run `board <id>` to list the lists within a board.
 3. Ask the user which list to use if no obvious choice exists.
@@ -151,7 +165,29 @@ Always refetch the board (`board <id>`) after marking done/doing/on-hold when pl
 
 ### Updating a task
 
-All update actions are covered by the command list above (done/doing/on-hold flags, rename, description, tags via `tag-task` / `untag-task`, members via `member-task` / `unassign-member`, delete). Keep a card's tags and members current as its scope changes. For comments: add one with `comment`; edit or delete it with `edit_comment` / `delete_comment`, getting comment ids from `task <task_id>` or the board graph.
+7. Set both dates: `start-date <task_id> "<ISO-8601 datetime>"` and `due-date <task_id> "<ISO-8601 datetime>"`. Every card should carry a start date and a due date from the moment it exists, unless there is an explicit reason not to (see **Session workflow**).
+
+All update actions are covered by the command list above (done/doing/on-hold flags, rename, description, tags via `tag-task` / `untag-task`, members via `member-task` / `unassign-member`, dates via `start-date` / `due-date`, delete). Keep a card's tags, members and dates current as its scope changes. For comments: add one with `comment`; edit or delete it with `edit_comment` / `delete_comment`, getting comment ids from `task <task_id>` or the board graph.
+
+## Markdown export and memory-bank
+
+Exported Markdown is a self-describing snapshot of board state: the header carries an export timestamp plus the active-filter summary, lists keep their board order, cards carry state/dates/tags/members/versions, and task-level exports add description, checklists and comments. Exports are rendered **natively from the full database graph** (not the lazy-loaded GUI view), so they always contain every card — including ones the UI has not loaded yet.
+
+### Exporting
+
+```powershell
+# <t> = your Taskitty CLI entry point (see Locating the Taskitty CLI)
+<t> export-markdown ["<board_id>"] [--scope board|list|task] [--list-id N] [--task-id N] [--out file.md]
+# PowerShell client: -Scope/-ListId/-TaskId/-Out; filters: -Tags id,id -Members id,id -Milestones id,id -Versions v1,v2 -Due any|overdue|today -HideHidden
+```
+
+- `--scope board` (default) renders the whole board; `list` needs `--list-id`; `task` needs `--task-id`. Without `--out`, Markdown goes to stdout.
+- Filter flags apply the **same semantics as the GUI filter panel** (empty selection = section off): tags/members/milestones keep cards carrying any of the given ids, versions match card version labels, `--due overdue|today` filters by due date, and `--hide-hidden` skips hidden lists/cards. The desktop app exposes the same export from its board Export popover ("Export markdown"), list context menu, and card context menu — all surfaces share one native renderer, so results are identical.
+- Omitted board ids default to `./taskitty.json`'s "boardId" like every other action (see **Local API → Workspaces**).
+
+### Memory-bank convention
+
+Projects that keep a `memory-bank/` store exported snapshots under `memory-bank/exports/` (e.g. `exports/board-3.md`, `exports/list-6.md`). At session start, read the exports relevant to the work instead of re-querying or guessing board state; refresh them with `export-markdown --out ...` when you need a current view or before writing context-dependent notes. Hand-written memory-bank files should cover only what cannot be derived from the board itself (decisions, rationale, external constraints) — never duplicate card content that an export already provides.
 
 ## Recording completed work as a Taskitty task
 

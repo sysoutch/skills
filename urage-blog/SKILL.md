@@ -6,7 +6,7 @@ another endpoint implementing the same post contract.
 ## One publishing contract
 
 The Taskitty Blog Posts UI (`frontend/src/blog.rs`) and release client
-(`scripts/urage-blog/urage-blog-launcher.cjs`) must remain equivalent:
+(`.agents/skills/urage-blog/scripts/urage-blog-launcher.cjs`) must remain equivalent:
 
 - `POST` to `URAGE_BLOG_API_URL`.
 - HTTP Basic authentication with an application password.
@@ -41,6 +41,6 @@ status are image URL and ISO publication date.
 
 ## Verification
 
-Run `node --check scripts/urage-blog/urage-blog-launcher.cjs` after changing
+Run `node --check .agents/skills/urage-blog/scripts/urage-blog-launcher.cjs` after changing
 the client. A real publish requires user-provided valid credentials and an
 authorized endpoint; do not treat a syntax check as a successful publication.
