@@ -39,10 +39,10 @@ Use this skill when:
 6. Create or update the task.
 7. Set its metadata and mark it `doing`.
 8. Do the work and record progress in comments.
-9. Record progress when useful.
-10. Finish with a `reflections` comment.
-11. Mark the task `done`.
-12. Refetch the board if workflow routing may have moved the task.
+9. Finish with a `reflections` comment.
+10. Mark the task `done`.
+11. Refetch the board if workflow routing may have moved the task.
+12. if this is a git repository, you probably want to commit and push your changes but do not include Taskitty ids or other actions in the commit message. Instead, use a short message about the work itself.
 
 ## Existing tasks
 
