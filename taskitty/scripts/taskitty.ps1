@@ -13,6 +13,7 @@
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 list-tasks <list_id>
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 start-date|due-date <task_id> "<ISO-8601 datetime>" | clear
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 comment <task_id> "text" (or @file)
+#   .\.agents\skills\taskitty\scripts\taskitty.ps1 reflections <task_id> [-Cause "text"] [-Solution "text"] [-Troubles "text"] [-Findings "text"] [-Todos "text"] [-Other "text"] [-BlogPost] [-FollowUp]
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 attach <task_id> <image-file>
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 comment-attach <comment_id> <image-file>
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 export-markdown <board_id> [-Scope board|list|task] [-ListId N|-TaskId N] [-Out file.md]
@@ -71,7 +72,17 @@ param(
     [string]$Versions = "",
     [ValidateSet("any", "overdue", "today")]
     [string]$Due = "any",
-    [switch]$HideHidden = $false
+    [switch]$HideHidden = $false,
+    # Named-only (reflections): structured finishing comment sections; empty = section skipped.
+    [string]$Cause = "",
+    [string]$Solution = "",
+    [string]$Troubles = "",
+    [string]$Findings = "",
+    [string]$Todos = "",
+    [string]$Other = "",
+    # Named-only (reflections): side effects mirroring the desktop Reflections panel.
+    [switch]$BlogPost = $false,
+    [switch]$FollowUp = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -521,6 +532,15 @@ switch ($Action) {
         Write-Output "Created list id=$($result.id)"
     }
 
+    "delete-list" {
+        if (-not $Arg1) {
+            Write-Error 'Usage: taskitty delete-list <list_id>'
+            exit 1
+        }
+        $result = Invoke-Taskitty -Method Delete -Path "/v1/lists/$Arg1" -Body @{}
+        Write-Output "Deleted list id=$($result.id)"
+    }
+
     "delete-board" {
         if (-not $Arg1) {
             Write-Error 'Usage: taskitty delete-board <board_id>'
@@ -780,6 +800,33 @@ switch ($Action) {
         Write-Output "Edited comment $Arg1"
     }
 
+    "reflections" {
+        # Structured finishing comment - the desktop Reflections panel through the API. Filled
+        # sections are composed in fixed order into "Title: text" lines on one card comment;
+        # -BlogPost / -FollowUp mirror the panel's side effects (draft note, follow-up card).
+        if (-not $Arg1) {
+            Write-Error 'Usage: taskitty reflections <task_id> [-Cause "text"] [-Solution "text"] [-Troubles "text"] [-Findings "text"] [-Todos "text"] [-Other "text"] [-BlogPost] [-FollowUp]'
+            exit 1
+        }
+        $body = @{}
+        if ($Cause) { $body['cause'] = Resolve-Payload $Cause }
+        if ($Solution) { $body['solution'] = Resolve-Payload $Solution }
+        if ($Troubles) { $body['troubles'] = Resolve-Payload $Troubles }
+        if ($Findings) { $body['findings'] = Resolve-Payload $Findings }
+        if ($Todos) { $body['todos'] = Resolve-Payload $Todos }
+        if ($Other) { $body['other'] = Resolve-Payload $Other }
+        if (-not $body.Keys) { Write-Error 'reflections: at least one section is required (use `comment` for a plain note)'; exit 1 }
+        if ($BlogPost) { $body['create_blog_post'] = $true }
+        if ($FollowUp) { $body['create_follow_up_task'] = $true }
+        $authorId = Get-ConfigAuthorId
+        if ($authorId -gt 0) { $body['author_id'] = $authorId }
+        $result = Invoke-Taskitty -Method Post -Path "/v1/tasks/$Arg1/reflections" -Body $body
+        $extra = ""
+        if ($result.follow_up_task_id) { $extra += " (follow-up task $($result.follow_up_task_id))" }
+        if ($result.blog_note_id) { $extra += " (blog draft note $($result.blog_note_id))" }
+        Write-Output "Saved finishing comment id=$($result.comment_id) on task $Arg1$extra"
+    }
+
     "delete_comment" {
         if (-not $Arg1) {
             Write-Error 'Usage: taskitty delete_comment <comment_id>'
@@ -920,7 +967,7 @@ switch ($Action) {
 
     default {
         Write-Error "Unknown action: $Action"
-        Write-Output "Available actions: configure, configure-url, which, token, start-api (start), stop-api (stop), status, health, boards, create-board, create-list, delete-board, project-config, board, add, done, undone, doing, on_hold, off_doing, off_on_hold, rename, description, start-date, due-date, list-tasks, task, comment, edit_comment, delete_comment, attach, comment-attach, tags, create-tag, tag-task, untag-task, members, create-member, member-task, unassign-member, board-member, unassign-board-member, delete, export-markdown"
+        Write-Output "Available actions: configure, configure-url, which, token, start-api (start), stop-api (stop), status, health, boards, create-board, create-list, delete-list, delete-board, project-config, board, add, done, undone, doing, on_hold, off_doing, off_on_hold, rename, description, start-date, due-date, list-tasks, task, comment, edit_comment, delete_comment, attach, comment-attach, tags, create-tag, tag-task, untag-task, members, create-member, member-task, unassign-member, board-member, unassign-board-member, delete, export-markdown"
         exit 1
     }
 }

@@ -484,6 +484,12 @@ async function cmdCreateList(args) {
   console.log(`Created list id=${r.id}`);
 }
 
+async function cmdDeleteList(args) {
+  if (!args[0]) fail('Usage: taskitty delete-list <list_id>');
+  const r = await api('DELETE', `/v1/lists/${args[0]}`, {});
+  console.log(`Deleted list id=${r.id}`);
+}
+
 async function cmdProjectConfig(args) {
   // Writes taskitty.json into an existing project directory through the API. The workspace is
   // selected exactly like for other actions (--workspace flag, then ./taskitty.json in the cwd,
@@ -695,6 +701,34 @@ async function cmdComment(args) {
   console.log(`Added comment id=${r.id} on task ${args[0]}${authorId !== null ? ` (as member ${authorId})` : ''}`);
 }
 
+async function cmdReflections(args) {
+  // Structured finishing comment - the desktop Reflections panel through the API. Filled
+  // sections are composed in fixed order into "Title: text" lines on one card comment;
+  // --blog / --follow-up mirror the panel's side effects (draft note, follow-up card).
+  const usage = 'Usage: taskitty reflections <task_id> [--cause "text"] [--solution "text"] [--troubles "text"] [--findings "text"] [--todos "text"] [--other "text"] [--blog] [--follow-up]';
+  if (!args[0]) fail(usage);
+  const sections = { cause: null, solution: null, troubles: null, findings: null, todos: null, other: null };
+  let blog = false;
+  let followUp = false;
+  for (let i = 1; i < args.length; i++) {
+    const a = String(args[i]);
+    if (a === '--blog') blog = true;
+    else if (a === '--follow-up') followUp = true;
+    else if (Object.prototype.hasOwnProperty.call(sections, a.slice(2))) {
+      if (args[i + 1] === undefined) fail(`${usage}\nMissing text after ${a} (inline or @file)`);
+      sections[a.slice(2)] = payloadArg(args[++i]);
+    } else fail(`${usage}\nUnknown flag: ${a}`);
+  }
+  const body = {};
+  for (const [key, value] of Object.entries(sections)) if (value !== null) body[key] = value;
+  if (blog) body.create_blog_post = true;
+  if (followUp) body.create_follow_up_task = true;
+  const authorId = configAuthorId();
+  if (authorId !== null) body.author_id = authorId;
+  const r = await api('POST', `/v1/tasks/${args[0]}/reflections`, body);
+  console.log(`Saved finishing comment id=${r.comment_id} on task ${args[0]}${r.follow_up_task_id ? ` (follow-up task ${r.follow_up_task_id})` : ''}${r.blog_note_id ? ` (blog draft note ${r.blog_note_id})` : ''}`);
+}
+
 async function cmdEditComment(args) {
   if (!args[0] || !args[1]) fail('Usage: taskitty edit_comment <comment_id> "new text" (or @file)');
   const message = payloadArg(args[1]);
@@ -757,6 +791,7 @@ switch (action) {
   case 'boards': run(cmdBoards); break;
   case 'create-board': run(() => cmdCreateBoard(rest)); break;
   case 'create-list': run(() => cmdCreateList(rest)); break;
+  case 'delete-list': run(() => cmdDeleteList(rest)); break;
   case 'project-config': run(() => cmdProjectConfig(rest)); break;
   case 'delete-board': run(() => cmdDeleteBoard(rest)); break;
   case 'board': run(() => cmdBoard(rest)); break;
@@ -770,6 +805,7 @@ switch (action) {
   case 'list-tasks': run(() => cmdListTasks(rest)); break;
   case 'task': run(() => cmdTask(rest)); break;
   case 'comment': run(() => cmdComment(rest)); break;
+  case 'reflections': run(() => cmdReflections(rest)); break;
   case 'edit_comment': run(() => cmdEditComment(rest)); break;
   case 'delete_comment': run(() => cmdDeleteComment(rest)); break;
   case 'attach': run(() => cmdAttach(rest)); break;
@@ -789,7 +825,7 @@ switch (action) {
   default:
     console.log(`Taskitty API CLI - endpoint ${API_URL} (override with TASKITTY_API_URL)`);
     console.log('Lifecycle : configure <taskitty-api path> | configure-url <http://host:port> | which | start | stop | status | health | token');
-    console.log('Tasks     : boards | create-board "name" [description] | create-list <board_id> "name" | delete-board <board_id>');
+    console.log('Tasks     : boards | create-board "name" [description] | create-list <board_id> "name" | delete-list <list_id> | delete-board <board_id>');
     console.log('Project   : project-config [directory] [--replace] [--board-id N --board-name "name"] [--author-id N --author-name "name"] writes taskitty.json via the API');
     console.log('            board ["<board_id>"] | tags ["<board_id>"] | create-tag ["<board_id>"] "name" [color]');
     console.log('            tag-task <task_id> <tag_id> | untag-task <task_id> <tag_id>');
@@ -802,6 +838,8 @@ switch (action) {
     console.log('Dates     : start-date|due-date <task_id> "<ISO-8601 datetime>" | clear  (e.g. "2026-09-07T00:00:00.000Z")');
     console.log('Comments  : comment <task_id> "text" | edit_comment <comment_id> "new text" (both accept @file)');
     console.log('            delete_comment <comment_id> - ids come from `task` or the board graph');
+    console.log('Finishing : reflections <task_id> [--cause|--solution|--troubles|--findings|--todos|--other "text"|@file] [--blog] [--follow-up]');
+    console.log('            structured finishing comment (Reflections sections); --blog saves a draft note, --follow-up creates the follow-up card');
     console.log('Files     : attach <task_id> <file> sets the card cover | comment-attach <comment_id> <file>');
     console.log('Export    : export-markdown ["<board_id>"] [--scope board|list|task] [--list-id N|--task-id N] [--out file.md]');
     console.log('            filters like the GUI: --tags id,id --members id,id --milestones id,id --versions v1,v2 --due any|overdue|today --hide-hidden');

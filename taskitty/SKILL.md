@@ -32,11 +32,12 @@ Both clients expose identical actions; the PowerShell client uses named paramete
 
 Rules that apply to every session:
 
-- Add **one or more** Taskitty tasks for the user's prompt: if one prompt contains several distinct pieces of work (multiple features, steps, deliverables), decompose it and create **one card per piece** — never cram multiple deliverables into a single task. For each card: rephrase it into a concise title, add a description with more background information, assign 1 or more tags (create a new tag if no suitable one exists) and the fitting member(s) (`members` to list them; `create-member` if none fits), mark the task as `doing` before you start working on the task, then do your work. Keep both current while working — update tags/members later when the task's scope changes.
+- Add **one or more** Taskitty tasks for the user's prompt: if one prompt contains several distinct pieces of work (multiple features, steps, deliverables), decompose it and create **one task per piece** — never cram multiple deliverables into a single task. For each **new task**, rephrase it into a concise title, add a description with more background information, assign 1 or more tags (create a new tag if no suitable one exists) and the fitting member(s) (`members` to list them; `create-member` if none fits), mark the task as `doing` before you start working on it, then do your work. **If a task already exists on the board and the user asks you to start or resume working on it, first bring that existing task up to the same standard: review and update its title/description if needed, ensure it has suitable tags and fitting member(s), set both `start-date` and `due-date` if missing or outdated, and mark it as `doing` before starting work.** Keep tags, members, dates, and status current throughout the work and update them later when the task's scope changes.
+
 - Set **both a start date and a due date** (`start-date` / `due-date`) on every new card at creation time, unless there is an explicit reason not to (e.g. a pure backlog/idea card with no planned work window — say so in its description). Use ISO-8601 UTC datetimes; pick dates that reflect the real plan rather than placeholders.
 - Record **follow-up tasks** as well: when a prompt implies possible or likely follow-up work (next steps, deferred parts, things that depend on what you are doing now), create cards for those too and mention them alongside the main task(s) so the user sees the full scope. Put speculative ones in an ideas/backlog-style list if the board has one (ask which list otherwise), and note dependencies between related cards in their descriptions.
 - While working, use **normal comments** (`comment`) for progress updates; when you finish, update each task by adding a **finishing comment** — see *Recording completed work as a Taskitty task* for what it must cover.
-- Before starting work in a project that keeps a `memory-bank/`, read the exported board/list Markdown under `memory-bank/exports/` (refresh with `export-markdown --out ...` when stale) so you start from current board state instead of re-deriving it; keep hand-written memory-bank notes for context that cannot be derived from the board itself — see **Markdown export and memory-bank**.
+- Before starting work in a project that keeps a `memory-bank/`, read the exported board/list Markdown under `memory-bank/exports/<board-id>/` (one subfolder per board; refresh with `export-markdown --out ...` when stale) so you start from current board state instead of re-deriving it; keep hand-written memory-bank notes for context that cannot be derived from the board itself — see **Markdown export and memory-bank**.
 - If the task is done but needs to be verified, add a tag like `needs-verification` or `needs-review` and mention it in the finishing comment.
 - If the local API is not running, start it with `start` before recording work. Use `tags`, `create-tag`, `tag-task`, `untag-task`, `members`, `create-member`, `member-task`, and `unassign-member` through the CLI; do not skip tags or members because a command is missing—implement the scoped command first.
 
@@ -111,6 +112,7 @@ All Taskitty API operations should go through the CLI:
 <t> rename <task_id> "New name"
 <t> delete <task_id>                                 # permanently delete a task
 <t> comment <task_id> "<text>"                       # add a card comment (prints its id)
+<t> reflections <task_id> [--cause|--solution|--troubles|--findings|--todos|--other "text"] [--blog] [--follow-up]   # structured finishing comment (Reflections sections; @file payloads work too)
 <t> edit_comment <comment_id> "<new text>"           # edit a comment message
 <t> delete_comment <comment_id>                      # delete a comment
 <t> attach <task_id> <file>                          # upload file and set it as the card cover
@@ -128,6 +130,7 @@ All Taskitty API operations should go through the CLI:
 <t> boards                                           # list all boards
 <t> create-board "Project board" "Optional description"
 <t> create-list <board_id> "Backlog"
+<t> delete-list <list_id>                          # remove a list and (via FK cascade) its tasks
 <t> project-config [directory] [--replace] [--board-id N --board-name "name"] [--author-id N --author-name "name"]  # write taskitty.json via the API (default directory: cwd)
 <t> delete-board <board_id>
 <t> board <board_id>                                 # show board details + lists
@@ -165,6 +168,8 @@ For a prompt that contains several pieces of work, create one card per piece (se
 
 ### Updating a task
 
+**Picking up an existing card:** before starting work on a card that already exists, check whether it carries tags, comments and dates — if any are missing, update them first so the card reflects the work being done: assign at least one fitting tag (and member) with `tag-task` / `member-task`, set both dates with `start-date` / `due-date`, and add a comment recording that work has started.
+
 7. Set both dates: `start-date <task_id> "<ISO-8601 datetime>"` and `due-date <task_id> "<ISO-8601 datetime>"`. Every card should carry a start date and a due date from the moment it exists, unless there is an explicit reason not to (see **Session workflow**).
 
 All update actions are covered by the command list above (done/doing/on-hold flags, rename, description, tags via `tag-task` / `untag-task`, members via `member-task` / `unassign-member`, dates via `start-date` / `due-date`, delete). Keep a card's tags, members and dates current as its scope changes. For comments: add one with `comment`; edit or delete it with `edit_comment` / `delete_comment`, getting comment ids from `task <task_id>` or the board graph.
@@ -187,7 +192,7 @@ Exported Markdown is a self-describing snapshot of board state: the header carri
 
 ### Memory-bank convention
 
-Projects that keep a `memory-bank/` store exported snapshots under `memory-bank/exports/` (e.g. `exports/board-3.md`, `exports/list-6.md`). At session start, read the exports relevant to the work instead of re-querying or guessing board state; refresh them with `export-markdown --out ...` when you need a current view or before writing context-dependent notes. Hand-written memory-bank files should cover only what cannot be derived from the board itself (decisions, rationale, external constraints) — never duplicate card content that an export already provides.
+Projects that keep a `memory-bank/` store exported snapshots under `memory-bank/exports/<board-id>/`, one subfolder per board (e.g. `exports/board-3/board-3.md`, `exports/board-3/list-6.md`) — every export of a board's lists or tasks goes into that board's folder, never loose in `exports/`. At session start, read the exports relevant to the work instead of re-querying or guessing board state; refresh them with `export-markdown --out memory-bank/exports/<board-id>/...` when you need a current view or before writing context-dependent notes. Hand-written memory-bank files should cover only what cannot be derived from the board itself (decisions, rationale, external constraints) — never duplicate card content that an export already provides.
 
 ## Recording completed work as a Taskitty task
 
@@ -198,11 +203,14 @@ Target the database declared in `taskitty.json` at the project root — see **Lo
 1. **API running + token available**: run `<folder>\taskitty.bat start` from wherever Taskitty's final build lives (idempotent). The desktop Taskitty application does not need to be open; the API may run as a background process. Generate the token **before** starting on Windows — see **Local API → Token**.
 2. Run `boards` to see available boards, then `board <id>` on the target board to discover list IDs. Ask the user which board/list to use if no sensible documentation list is obvious.
 3. Create the task with `add <list_id> "<concise title>"`. The client prints the new task ID, then assign a fitting tag and member to it as for any other card (see *Creating a task*, step 6).
-4. Record the completion summary as a **finishing comment** with `comment <task_id> "<markdown>"` (use an `@file` payload when the text has quotes or newlines; keep normal comments for progress updates while work is in flight) covering:
-   - **Outcome**: what was accomplished
-   - **Relevant files**: which files were created or modified
-   - **Verification**: what was actually verified (compile, test, API response, etc.)
+4. Record the completion summary as a **finishing comment** in the structured Reflections format — use `reflections <task_id> [--cause ...] [--solution ...] [--troubles ...] [--findings ...] [--todos ...] [--other ...]` (each section accepts inline text or an `@file` payload; keep normal comments for progress updates while work is in flight). The command composes the filled sections into one card comment (`Title: text` lines) and can mirror the desktop panel's side effects with `--blog` (draft note saved to Notes) and `--follow-up` (a "Follow-up: <task>" card in the same list, description from Todos/Other). Fill the sections that apply:
+   - **Cause**: why this task existed — the reason or problem that led to it
+   - **Solution**: what was done to solve it; include the relevant files created or modified here
+   - **Troubles**: what you struggled with most (omit when nothing notable)
+   - **Findings**: pitfalls and lessons learned; record verification evidence here too (compile, test, API response, E2E run) — be explicit about what was actually verified
+   - **Todos**: what could still be improved / follow-up work
+   - **Other**: anything else worth recording
 
-   Set a description with `description` only when the card needs standing reference info.
+   When marking a task done through the API (`done <task_id>`), always write this finishing comment right after it — the desktop app shows the same panel in its UI, but API clients must post the note themselves. Set a description with `description` only when the card needs standing reference info.
 5. Mark the card done: `done <task_id>`.
 6. Refetch the board after creating/updating the task when its resulting ID or placement matters — reporting names alongside ids per **Report names with ids** — and state any incomplete verification plainly (see Ground rules).
