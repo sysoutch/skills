@@ -16,7 +16,7 @@
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 reflections <task_id> [-Cause "text"] [-Solution "text"] [-Troubles "text"] [-Findings "text"] [-Todos "text"] [-Other "text"] [-BlogPost] [-FollowUp]
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 attach <task_id> <image-file>
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 comment-attach <comment_id> <image-file>
-#   .\.agents\skills\taskitty\scripts\taskitty.ps1 export-markdown <board_id> [-Scope board|list|task] [-ListId N|-TaskId N] [-Out file.md]
+#   .\.agents\skills\taskitty\scripts\taskitty.ps1 export-markdown <board_id> [-Scope board|list|task] [-Format lists|single] [-ListId N|-TaskId N] [-Out file.md|dir/]
 #       (filters like the GUI: -Tags id,id -Members id,id -Milestones id,id -Versions v1,v2 -Due any|overdue|today -HideHidden)
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 tags ["<board_id>"] | create-tag ["<board_id>"] "name" [#rrggbb]
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 tag-task <task_id> <tag_id> | untag-task <task_id> <tag_id>
@@ -61,6 +61,8 @@ param(
     # Named-only (export-markdown): export scope and target ids.
     [ValidateSet("board", "list", "task")]
     [string]$Scope = "board",
+    [ValidateSet("lists", "single")]
+    [string]$Format = "lists",
     [int]$ListId = 0,
     [int]$TaskId = 0,
     # Named-only (export-markdown): destination file; empty prints to stdout.
@@ -680,7 +682,7 @@ switch ($Action) {
             Write-Error 'Usage: taskitty.ps1 export-markdown <board_id> [-Scope board|list|task] [-ListId N] [-TaskId N] [-Out file.md] [-Tags id,id] [-Members id,id] [-Milestones id,id] [-Versions v1,v2] [-Due any|overdue|today] [-HideHidden]'
             exit 1
         }
-        $body = @{ board_id = [int]$Arg1; scope = $Scope }
+        $body = @{ board_id = [int]$Arg1; scope = $Scope; format = $Format }
         if ($ListId -gt 0) { $body.list_id = $ListId }
         if ($TaskId -gt 0) { $body.task_id = $TaskId }
         # Same filter fields as the GUI panel: empty selection = section off.
@@ -693,14 +695,30 @@ switch ($Action) {
         if ($HideHidden) { $filter.hide_hidden = $true }
         if ($filter.Count -gt 0) { $body.filter = $filter }
         $result = Invoke-Taskitty -Method Post -Path "/v1/export/markdown" -Body $body
-        $markdown = [string]$result.markdown
-        if (-not $markdown) { Write-Error "export returned no markdown for board $Arg1"; exit 1 }
-        if ($Out) {
-            $target = Join-Path (Get-Location).Path $Out
-            Set-Content -Path $target -Value $markdown -NoNewline -Encoding utf8
-            Write-Output "Wrote $target ($($markdown.Length) chars, scope=$Scope)"
+        # The API returns { files: [{ filename, markdown }] } — one entry per file.
+        $files = @($result.files)
+        if ($files.Count -eq 0 -and $result.markdown) { $files = @(@{ filename = "export.md"; markdown = [string]$result.markdown }) }
+        if ($files.Count -eq 0) { Write-Error "export returned no files for board $Arg1"; exit 1 }
+        # Multi-file (per-list) export: write each file into an output directory.
+        if ($files.Count -gt 1) {
+            if (-not $Out) { Write-Error "multi-file export needs -Out <dir> to write the list files"; exit 1 }
+            $dir = Join-Path (Get-Location).Path $Out
+            New-Item -ItemType Directory -Force -Path $dir | Out-Null
+            foreach ($f in $files) {
+                $target = Join-Path $dir ([string]$f.filename)
+                Set-Content -Path $target -Value ([string]$f.markdown) -NoNewline -Encoding utf8
+                Write-Output "Wrote $target"
+            }
+            Write-Output "$($files.Count) list file(s) written to $dir"
         } else {
-            Write-Output $markdown
+            $markdown = [string]$files[0].markdown
+            if ($Out) {
+                $target = Join-Path (Get-Location).Path $Out
+                Set-Content -Path $target -Value $markdown -NoNewline -Encoding utf8
+                Write-Output "Wrote $target ($($markdown.Length) chars, scope=$Scope, format=$Format)"
+            } else {
+                Write-Output $markdown
+            }
         }
     }
 

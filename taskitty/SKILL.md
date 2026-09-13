@@ -21,10 +21,15 @@ Use this skill when:
 
 - Use the bundled CLI for every Taskitty operation. Never use raw HTTP.
 - Create one task per meaningful deliverable.
-- Before starting work, the task must have a useful title, description, tag, member, start date, due date, and `doing` status.
+- Tasks must have a useful title, description, tags, milestone(s), member(s), start date, and due date.
+- Before starting work, mark the task `doing`.
+- A task usually needs at least 3 tags to indicate type (bug, feature, ..), estimated duration (short task, long task, ..), and area (visual, UI, UX, API, ..).
 - Keep task metadata current as scope changes.
 - Use comments for progress and `reflections` for completion.
+- Do not re-document work already recorded as a Taskitty task in hand-written memory-bank files; the task and its comments/reflections are the record of that work.
 - Write the finishing reflection before marking the task `done`.
+- If you can't mark a task as done yet, write a comment and keep it `doing` until the work is complete.
+- If the task is complete but needs verification, add a tag like `needs-review` or `qa` and keep it `doing` until the review is complete.
 - Never expose the API token.
 - Never claim verification that was not performed.
 - Report Taskitty IDs together with their names.
@@ -70,7 +75,7 @@ Taskitty Markdown exports are the source of truth for board-derived state. Keep 
 
 `memory-bank/exports/<board-id>/` (can be overwritten by the user in `resources/config.json`).
 
-Use hand-written memory-bank files only for context that cannot be derived from Taskitty.
+Use hand-written memory-bank files only for context that cannot be derived from Taskitty — rationale, external constraints, decisions made outside Taskitty, durable context. Do not re-document there work that is already documented in a Taskitty task: the task record (description, progress comments, finishing reflection) is the account of completed work, and duplicating it into notes creates two sources that drift apart.
 
 ## References
 

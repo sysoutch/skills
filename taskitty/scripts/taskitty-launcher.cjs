@@ -624,11 +624,12 @@ async function cmdDelete(args) {
 }
 
 async function cmdExportMarkdown(args) {
-  const usage = 'Usage: taskitty export-markdown ["<board_id>"] [--scope board|list|task] [--list-id N] [--task-id N] [--out file.md]\n' +
+  const usage = 'Usage: taskitty export-markdown ["<board_id>"] [--scope board|list|task] [--format lists|single] [--list-id N] [--task-id N] [--out file.md|dir/]\n' +
     '            filters (same semantics as the GUI): --tags id,id --members id,id --milestones id,id\n' +
-    '            --versions v1,v2 --due any|overdue|today --hide-hidden';
+    '            --versions v1,v2 --due any|overdue|today --hide-hidden\n' +
+    '            board scope defaults to --format lists (one list-<id>.md per visible list); use --out dir/ to write them, or --format single for one combined file.';
   let explicitBoard = null;
-  const body = { scope: 'board' };
+  const body = { scope: 'board', format: 'lists' };
   const filter = {};
   let outPath = null;
   const ids = (v) => String(v).split(',').map((s) => Number(s.trim())).filter(Number.isInteger);
@@ -641,6 +642,10 @@ async function cmdExportMarkdown(args) {
       const v = String(args[++i] ?? '');
       if (!['board', 'list', 'task'].includes(v)) fail(`${usage}: --scope must be board, list or task`);
       body.scope = v;
+    } else if (a === '--format') {
+      const v = String(args[++i] ?? '');
+      if (!['lists', 'single'].includes(v)) fail(`${usage}: --format must be lists or single`);
+      body.format = v;
     } else if (a === '--list-id' && args[i + 1] !== undefined) body.list_id = Number(args[++i]);
     else if (a === '--task-id' && args[i + 1] !== undefined) body.task_id = Number(args[++i]);
     else if (a === '--tags' && args[i + 1] !== undefined) filter.tags = ids(args[++i]);
@@ -659,10 +664,27 @@ async function cmdExportMarkdown(args) {
   body.board_id = boardId;
   if (Object.keys(filter).length > 0) body.filter = filter;
   const r = await api('POST', '/v1/export/markdown', body);
-  const markdown = typeof r === 'string' ? r : r.markdown;
-  if (!markdown) fail(`export returned no markdown for board ${boardId}`);
-  const text = markdown.endsWith('\n') ? markdown : `${markdown}\n`;
-  if (outPath) { fs.writeFileSync(outPath, text); console.log(`Wrote ${path.basename(outPath)} (${text.length} chars, scope=${body.scope})`); }
+  // The API returns { files: [{ filename, markdown }] } — one entry per file.
+  const files = Array.isArray(r.files) ? r.files : (r.markdown != null ? [{ filename: 'export.md', markdown: r.markdown }] : []);
+  if (!files.length) fail(`export returned no files for board ${boardId}`);
+  const normalize = (text) => (typeof text === 'string' && text.endsWith('\n') ? text : `${text}\n`);
+
+  // Multi-file (per-list) export: write each file into an output directory.
+  if (files.length > 1) {
+    if (!outPath) fail(`${usage}\nmulti-file export needs --out <dir> to write the list files`);
+    fs.mkdirSync(outPath, { recursive: true });
+    for (const f of files) {
+      const target = path.join(outPath, f.filename || 'export.md');
+      fs.writeFileSync(target, normalize(f.markdown));
+      console.log(`Wrote ${path.basename(target)} (${f.markdown.length} chars)`);
+    }
+    console.log(`${files.length} list file(s) written to ${outPath}`);
+    return;
+  }
+
+  // Single-file export (board single, or list/task scope).
+  const text = normalize(files[0].markdown);
+  if (outPath) { fs.writeFileSync(outPath, text); console.log(`Wrote ${path.basename(outPath)} (${text.length} chars, scope=${body.scope}, format=${body.format})`); }
   else process.stdout.write(text);
 }
 
@@ -841,7 +863,7 @@ switch (action) {
     console.log('Finishing : reflections <task_id> [--cause|--solution|--troubles|--findings|--todos|--other "text"|@file] [--blog] [--follow-up]');
     console.log('            structured finishing comment (Reflections sections); --blog saves a draft note, --follow-up creates the follow-up card');
     console.log('Files     : attach <task_id> <file> sets the card cover | comment-attach <comment_id> <file>');
-    console.log('Export    : export-markdown ["<board_id>"] [--scope board|list|task] [--list-id N|--task-id N] [--out file.md]');
+    console.log('Export    : export-markdown ["<board_id>"] [--scope board|list|task] [--format lists|single] [--list-id N|--task-id N] [--out file.md|dir/]');
     console.log('            filters like the GUI: --tags id,id --members id,id --milestones id,id --versions v1,v2 --due any|overdue|today --hide-hidden');
     console.log('Workspace : --workspace <path> on any task action; otherwise ./taskitty.json "databasePath" (cwd); else the API active workspace');
     console.log('Board id  : omitted board ids default to ./taskitty.json "boardId" when that config selected the workspace; an explicit number always wins');

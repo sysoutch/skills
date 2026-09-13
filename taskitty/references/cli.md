@@ -134,7 +134,7 @@ See `workspace.md` for configuration behavior.
 
 ## Markdown export
 
-export-markdown ["<board_id>"] [--scope board|list|task] [--list-id N] [--task-id N] [--out file.md]
+export-markdown ["<board_id>"] [--scope board|list|task] [--format lists|single] [--list-id N] [--task-id N] [--out file.md|dir/]
 
 PowerShell filters:
 
@@ -151,7 +151,12 @@ PowerShell filters:
 
 `task` requires `--task-id`.
 
-Without `--out`, Markdown is written to stdout.
+`--format` controls packaging (default `lists`):
+
+- `lists` — a `board-<id>.md` list index, one `list-<id>.md` task index per visible list, and one full-detail `task-<id>.md` per matching task (hidden lists skipped when `-HideHidden`). Board scope only; needs `--out <dir>` to write the files.
+- `single` — one combined file for the whole board (or the single list/task file).
+
+Without `--out`, a single-file export is written to stdout; a multi-file export requires `--out <dir>`.
 
 ## API lifecycle
 

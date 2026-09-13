@@ -26,25 +26,24 @@ Never put board/list/task exports directly in `memory-bank/exports/`.
 3. Use them as the current snapshot of board state.
 4. Treat the exports as the current session's board-state context. Avoid re-deriving information already present in them until a new session or context compaction, unless the underlying board state has changed.
 
-Refresh with:
+Refresh with (per-list files, the default):
 
-<t> export-markdown <board_id> --out memory-bank/exports/<board-id>/board-<board_id>.md
+<t> export-markdown <board_id> --out memory-bank/exports/<board-id>/
+
+This writes a `board-<id>.md` list index, one `list-<id>.md` task index per
+visible list, and one full-detail `task-<id>.md` per matching task into that
+folder. For a single board index file use:
+
+<t> export-markdown <board_id> --format single --out memory-bank/exports/<board-id>/board-<board_id>.md
 
 ## Export contents
 
-Board exports include:
+Board exports include only the board's lists. List exports include only task
+names (with stable IDs). Task exports include the complete task information:
 
 - export timestamp
 - active-filter summary
 - lists in board order
-- task state
-- dates
-- tags
-- members
-- versions
-
-Task exports additionally include information such as:
-
 - description
 - checklists
 - comments
@@ -65,7 +64,7 @@ Task:
 
 <t> export-markdown <board_id> --scope task --task-id <task_id>
 
-Use `--out` to write the result to a file.
+Use `--out` to write the result to a file. Board scope also accepts `--format lists|single` (default `lists`, a board/list/task hierarchy).
 
 ## Filters
 
@@ -87,6 +86,8 @@ Tags, members, and milestones use any-match behavior.
 ## Hand-written memory-bank files
 
 Use hand-written notes only for information that cannot be derived from Taskitty.
+
+Do not re-document completed work in hand-written files when it is already documented as a Taskitty task. The task record — description, progress comments, and finishing reflection — is the durable account of that work; repeating it in session-context or progress notes creates a second source that drifts from the board. A short pointer (card name + id) for orientation is fine; restating its content is not.
 
 Good candidates:
 
