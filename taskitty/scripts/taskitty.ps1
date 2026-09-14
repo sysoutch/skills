@@ -841,6 +841,7 @@ switch ($Action) {
         $result = Invoke-Taskitty -Method Post -Path "/v1/tasks/$Arg1/reflections" -Body $body
         $extra = ""
         if ($result.follow_up_task_id) { $extra += " (follow-up task $($result.follow_up_task_id))" }
+        if ($result.todo_task_ids -and @($result.todo_task_ids).Count -gt 0) { $extra += " (todo tasks $(@($result.todo_task_ids) -join ', '))" }
         if ($result.blog_note_id) { $extra += " (blog draft note $($result.blog_note_id))" }
         Write-Output "Saved finishing comment id=$($result.comment_id) on task $Arg1$extra"
     }

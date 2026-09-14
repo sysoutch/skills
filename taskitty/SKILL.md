@@ -25,7 +25,7 @@ Use this skill when:
 - Before starting work, mark the task `doing`.
 - A task usually needs at least 3 tags to indicate type (bug, feature, ..), estimated duration (short task, long task, ..), and area (visual, UI, UX, API, ..).
 - Keep task metadata current as scope changes.
-- Use comments for progress and `reflections` for completion.
+- Use comments for progress and `reflections` for completion. The Todos section of a finishing comment creates one new task per non-empty line, in the list the card was in before completion — call `reflections` before marking the task `done`.
 - Do not re-document work already recorded as a Taskitty task in hand-written memory-bank files; the task and its comments/reflections are the record of that work.
 - Write the finishing reflection before marking the task `done`.
 - If you can't mark a task as done yet, write a comment and keep it `doing` until the work is complete.

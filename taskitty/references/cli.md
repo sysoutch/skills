@@ -84,7 +84,7 @@ Use:
 - Solution: what changed, including relevant files
 - Troubles: notable difficulties
 - Findings: lessons and actual verification evidence
-- Todos: remaining or follow-up work
+- Todos: remaining or follow-up work — each non-empty line becomes a new task in the list the card was in before completion (call `reflections` before `done`)
 - Other: useful additional context
 
 Do not claim verification that was not actually performed.

@@ -688,6 +688,24 @@ async function cmdExportMarkdown(args) {
   else process.stdout.write(text);
 }
 
+async function cmdDeleteMarkdown(args) {
+  const usage = 'Usage: taskitty delete-markdown ["<board_id>"] [--out <path>]\n' +
+    'Deletes all markdown export files for the specified board, or all boards if no board_id is given.\n' +
+    'The default root folder for markdown exports is ./markdown-exports in the current working directory, but can be overridden with --out <path>.';
+  let explicitBoard = null;
+  let outPath = path.resolve(process.cwd(), 'markdown-exports');
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (/^\d+$/.test(a.trim())) {
+      if (explicitBoard !== null) fail(`${usage}\nonly one board id`);
+      explicitBoard = a.trim();
+    } else if (a === '--out' && args[i + 1] !== undefined) outPath = path.resolve(process.cwd(), args[++i]);
+    else {
+      fail(`${usage}\nUnknown argument: ${a}`);
+    }
+  }
+}
+
 function excerpt(value, max) {
   const s = String(value ?? '').trim();
   return s.length > max ? `${s.slice(0, max)}...` : s;
@@ -748,7 +766,8 @@ async function cmdReflections(args) {
   const authorId = configAuthorId();
   if (authorId !== null) body.author_id = authorId;
   const r = await api('POST', `/v1/tasks/${args[0]}/reflections`, body);
-  console.log(`Saved finishing comment id=${r.comment_id} on task ${args[0]}${r.follow_up_task_id ? ` (follow-up task ${r.follow_up_task_id})` : ''}${r.blog_note_id ? ` (blog draft note ${r.blog_note_id})` : ''}`);
+  const todosPart = Array.isArray(r.todo_task_ids) && r.todo_task_ids.length > 0 ? ` (todo tasks ${r.todo_task_ids.join(', ')})` : '';
+  console.log(`Saved finishing comment id=${r.comment_id} on task ${args[0]}${r.follow_up_task_id ? ` (follow-up task ${r.follow_up_task_id})` : ''}${todosPart}${r.blog_note_id ? ` (blog draft note ${r.blog_note_id})` : ''}`);
 }
 
 async function cmdEditComment(args) {
@@ -844,6 +863,7 @@ switch (action) {
   case 'unassign-board-member': run(() => cmdUnassignBoardMember(rest)); break;
   case 'delete': run(() => cmdDelete(rest)); break;
   case 'export-markdown': run(() => cmdExportMarkdown(rest)); break;
+  case 'delete-markdown': run(() => cmdDeleteMarkdown(rest)); break;
   default:
     console.log(`Taskitty API CLI - endpoint ${API_URL} (override with TASKITTY_API_URL)`);
     console.log('Lifecycle : configure <taskitty-api path> | configure-url <http://host:port> | which | start | stop | status | health | token');
