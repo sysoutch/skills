@@ -59,5 +59,6 @@
     }
   ],
   "note": "Read the live manifest before invoking optional parameters. This offline file is a routing aid.",
-  "baseUrl": "Configure this per installation, for example http://127.0.0.1:PORT"
+  "baseUrl": "Configure this per installation, for example http://127.0.0.1:PORT",
+  "defaultBaseUrl": "http://127.0.0.1:4782 (override with the release owner configured DASHBOARD_PORT/base URL)"
 }

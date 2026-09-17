@@ -9,9 +9,11 @@ Use this skill from a project that consumes a running URageNow Studio release. I
 
 ## Connect
 
-- Obtain the configured API base URL and any required authorization from the user or the project's existing configuration. Do not assume a port.
+- Obtain the configured API base URL and any required authorization from the user or the project's existing configuration. If a base URL is not supplied, use the local default `http://127.0.0.1:4782`; the release owner can change it with `DASHBOARD_PORT`, so do not guess another port or scan ports.
+- Confirm the selected base URL with a direct `GET {baseUrl}/health` or `GET {baseUrl}/api/llm-tools` request. If the default does not respond, ask the user for their configured base URL or port.
 - `localhost` or `127.0.0.1` works only when the caller and URageNow run on the same machine. A different device needs a reachable host, firewall rules, and any required CORS configuration.
-- Start with `GET {baseUrl}/api/llm-tools`. It supplies the live function manifest and is the authority for supported operations and optional fields.
+- Use direct HTTP requests to the running server. Do **not** launch a browser, navigate the Dashboard root, or use Playwright/browser automation to discover or invoke the API unless the user specifically asks to test the Dashboard UI.
+- Start with `GET {baseUrl}/api/llm-tools`. It supplies the live function manifest and is the authority for supported operations and optional fields. A successful response proves the API is reachable; the Dashboard page does not need to be open.
 - Use [`resources/llm-tool-functions.json`](resources/llm-tool-functions.json) only as an offline routing aid when the live server is temporarily unavailable.
 
 ## Use the API

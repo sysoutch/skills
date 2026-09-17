@@ -1,6 +1,6 @@
 # URageNow Studio release API usage
 
-All paths below are relative to the configured URageNow API base URL. Use the live `GET /api/llm-tools` manifest before constructing a generation request; providers and optional inputs can vary by the installed release.
+All paths below are relative to the configured URageNow API base URL. The local default is `http://127.0.0.1:4782`; releases may override it with `DASHBOARD_PORT`. Use the base URL supplied by the project's configuration or user, then confirm it with direct `GET /health` or `GET /api/llm-tools`. Do not scan ports or open a browser to discover the server. Use the live `GET /api/llm-tools` manifest before constructing a generation request; providers and optional inputs can vary by the installed release.
 
 ## Core workflows
 
@@ -16,6 +16,8 @@ All paths below are relative to the configured URageNow API base URL. Use the li
 The release may also offer image transformations, model editing/validation, speech, media inspection, generated-artifact history, and job-status routes. Use only routes advertised by the running release or documented by its installed API UI.
 
 ## Client rules
+
+- Call the configured API base URL directly with an HTTP client. Do not start Playwright, open `{baseUrl}/`, or automate the Dashboard page for API discovery or generation; those are UI-testing actions, not API integration.
 
 - Send the server's configured authorization header or credential with every request that requires it. Do not expose a privileged token in browser code.
 - Treat a returned job or artifact identifier as the canonical reference; do not create local filesystem paths for server-side artifacts.
