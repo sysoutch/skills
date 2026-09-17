@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-  [ValidateSet("health", "manifest", "jobs", "get", "post-json")]
+  [ValidateSet("health", "manifest", "jobs", "get", "post-json", "download")]
   [string]$Action = "health",
   [string]$BaseUrl = $(if ($env:URAGE_API_BASE_URL) { $env:URAGE_API_BASE_URL } else { "http://127.0.0.1:4782" }),
   [string]$AccessToken = $env:URAGE_API_TOKEN,
@@ -8,6 +8,11 @@ param(
   [string]$Json = "",
   [string]$DashboardRequestId = "",
   [string]$JobId = "",
+  [ValidateSet("", "image", "model3d", "audio", "video")]
+  [string]$ArtifactKind = "",
+  [string]$ArtifactId = "",
+  [string]$File = "",
+  [string]$OutFile = "",
   [ValidateSet("", "image", "model3d", "audio", "music", "video")]
   [string]$Kind = "",
   [ValidateRange(1, 250)]
@@ -42,10 +47,28 @@ switch ($Action) {
     $null = $Json | ConvertFrom-Json
     $target = "$base$($Path.Trim())"; $method = "POST"
   }
+  "download" {
+    if (-not $ArtifactKind -or -not $ArtifactId.Trim() -or -not $File.Trim() -or -not $OutFile.Trim()) { throw "-ArtifactKind, -ArtifactId, -File, and -OutFile are required for download." }
+    $route = switch ($ArtifactKind) {
+      "image" { @{ Path = "/api/generated-image-file"; Id = "imageId" } }
+      "model3d" { @{ Path = "/api/model3d-file"; Id = "modelId" } }
+      "audio" { @{ Path = "/api/generated-audio-file"; Id = "audioId" } }
+      "video" { @{ Path = "/api/generated-video-file"; Id = "videoId" } }
+    }
+    $target = "$base$($route.Path)?$($route.Id)=$([Uri]::EscapeDataString($ArtifactId.Trim()))&file=$([Uri]::EscapeDataString($File.Trim()))"
+    $method = "GET"
+  }
 }
 
 try {
   $parameters = @{ Uri = $target; Method = $method; Headers = $headers; TimeoutSec = $TimeoutSec; ErrorAction = "Stop" }
+  if ($Action -eq "download") {
+    $resolvedOutFile = [IO.Path]::GetFullPath($OutFile)
+    if (Test-Path -LiteralPath $resolvedOutFile) { throw "Refusing to overwrite existing file: $resolvedOutFile" }
+    Invoke-WebRequest @parameters -OutFile $resolvedOutFile
+    [pscustomobject]@{ path = $resolvedOutFile; bytes = (Get-Item -LiteralPath $resolvedOutFile).Length } | ConvertTo-Json
+    return
+  }
   if ($Action -eq "post-json") { $parameters["ContentType"] = "application/json"; $parameters["Body"] = $Json }
   Invoke-RestMethod @parameters | ConvertTo-Json -Depth 20
 } catch {

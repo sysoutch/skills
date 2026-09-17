@@ -12,18 +12,48 @@ Use this skill from a project that consumes a running URageNow Studio release. I
 - Obtain the configured API base URL and any required authorization from the user or the project's existing configuration. If a base URL is not supplied, use the local default `http://127.0.0.1:4782`; the release owner can change it with `DASHBOARD_PORT`, so do not guess another port or scan ports.
 - Confirm the selected base URL with a direct `GET {baseUrl}/health` or `GET {baseUrl}/api/llm-tools` request. If the default does not respond, ask the user for their configured base URL or port.
 - `localhost` or `127.0.0.1` works only when the caller and URageNow run on the same machine. A different device needs a reachable host, firewall rules, and any required CORS configuration.
-- Loading this skill provides instructions; it does not itself perform network requests. Use the consuming agent's command/HTTP capability explicitly. Prefer the dependency-free cross-platform [`scripts/uragenow-api.mjs`](scripts/uragenow-api.mjs) with Node 18+ on Windows, macOS, or Linux; on Windows, [`scripts/uragenow-api.ps1`](scripts/uragenow-api.ps1) is also available. Do not use ad-hoc `curl` aliases or browser automation.
+- Loading this skill provides instructions; it does not itself perform network requests. Use the supplied client helper before writing a custom request: [`scripts/uragenow-api.mjs`](scripts/uragenow-api.mjs) is the cross-platform default with Node 18+ on Windows, macOS, or Linux; on Windows without Node, use [`scripts/uragenow-api.ps1`](scripts/uragenow-api.ps1). Use custom HTTP only when the helper lacks the required operation. Do not use ad-hoc `curl` aliases or browser automation.
 - Use direct HTTP requests to the running server. Do **not** launch a browser, navigate the Dashboard root, or use Playwright/browser automation to discover or invoke the API unless the user specifically asks to test the Dashboard UI.
 - Start with `GET {baseUrl}/api/llm-tools`. It supplies the live function manifest and is the authority for supported operations and optional fields. A successful response proves the API is reachable; the Dashboard page does not need to be open.
 - Use [`resources/llm-tool-functions.json`](resources/llm-tool-functions.json) only as an offline routing aid when the live server is temporarily unavailable.
 
+
+## Quick start
+
+Use the supplied helper before creating custom HTTP code. With the default local server and Node 18+:
+
+```sh
+node scripts/uragenow-api.mjs --action health
+node scripts/uragenow-api.mjs --action manifest
+```
+
+After the user approves image generation, submit it once and keep the returned artifact record:
+
+```sh
+node scripts/uragenow-api.mjs --action post-json --path /api/image-generate --json '{"prompt":"a small red toy robot","dashboardRequestId":"your-unique-request-id"}'
+```
+
+A successful image record contains `id`, `imageFileName`, and `imageUrl`. To save that returned image locally, use the returned `id` and `imageFileName` (not a job ID):
+
+```sh
+node scripts/uragenow-api.mjs --action download --artifact-kind image --artifact-id <returned-id> --file <returned-imageFileName> --out <new-output-path>
+```
+
+On Windows without Node, use the equivalent PowerShell helper:
+
+```powershell
+.\scripts\uragenow-api.ps1 -Action health
+.\scripts\uragenow-api.ps1 -Action post-json -Path /api/image-generate -Json '{"prompt":"a small red toy robot","dashboardRequestId":"your-unique-request-id"}'
+```
+
+Use a new output path: both download helpers refuse to overwrite an existing file. For complete examples and failure handling, read [API usage](references/api-surface.md).
 ## Use the API
 
 - Read [API usage](references/api-surface.md) before integrating media, Chat Studio, or file/history workflows.
 - Read [LLM and tool resources](references/llm-and-tool-resources.md) for an LLM adapter or a handoff between two tools.
-- Call a generation endpoint once. These requests normally wait for completion and return the completed artifact on HTTP 200; never resend the same request to poll, because it may generate another artifact.
+- Call a generation endpoint once. These requests normally wait for completion and return the completed artifact on HTTP 200; never resend the same request to poll, because it may generate another artifact. The successful artifact record includes its `id`, file-name field, and relative download URL (`imageUrl`, `modelUrl`, `audioUrl`, or `videoUrl`). Use that URL or the helper's `download` action to retrieve the binary; a job ID is not a download ID.
 - When a request was interrupted or timed out, use a caller-supplied unique `dashboardRequestId` and inspect `GET /api/generation-jobs?requestId=...`. A tool-resource inbox is not generation status.
-- For text-to-3D, first obtain an image, then invoke the live model-generation function with `imageInput`.
+- Generate a 3D model only when the user explicitly requests one. A completed image request ends after returning or downloading its image artifact; do not infer a model-generation follow-up. When the user does request text-to-3D, first obtain an image, then invoke the live model-generation function with `imageInput`.
 - Persist an inter-tool handoff through `POST /api/tool-resources`, rather than relying solely on an in-memory or `postMessage` payload.
 
 ## Authorization and results

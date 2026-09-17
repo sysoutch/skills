@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import { access, writeFile } from "node:fs/promises";
+import path from "node:path";
+
 const defaults = {
   action: "health",
   baseUrl: process.env.URAGE_API_BASE_URL || "http://127.0.0.1:4782",
@@ -9,6 +12,10 @@ const defaults = {
   dashboardRequestId: "",
   jobId: "",
   kind: "",
+  artifactKind: "",
+  artifactId: "",
+  file: "",
+  out: "",
   limit: "50",
   timeoutMs: "1200000"
 };
@@ -16,7 +23,8 @@ const defaults = {
 const argumentMap = new Map([
   ["--action", "action"], ["--base-url", "baseUrl"], ["--token", "token"],
   ["--path", "path"], ["--json", "json"], ["--dashboard-request-id", "dashboardRequestId"],
-  ["--job-id", "jobId"], ["--kind", "kind"], ["--limit", "limit"], ["--timeout-ms", "timeoutMs"]
+  ["--job-id", "jobId"], ["--kind", "kind"], ["--artifact-kind", "artifactKind"],
+  ["--artifact-id", "artifactId"], ["--file", "file"], ["--out", "out"], ["--limit", "limit"], ["--timeout-ms", "timeoutMs"]
 ]);
 const options = {...defaults};
 for (let index = 2; index < process.argv.length; index += 2) {
@@ -33,6 +41,12 @@ if (!baseUrl) throw new Error("--base-url is required.");
 const headers = {accept: "application/json"};
 if (options.token.trim()) headers["x-dashboard-access-token"] = options.token.trim();
 
+const artifactRoutes = {
+  image: { path: "/api/generated-image-file", idQuery: "imageId" },
+  model3d: { path: "/api/model3d-file", idQuery: "modelId" },
+  audio: { path: "/api/generated-audio-file", idQuery: "audioId" },
+  video: { path: "/api/generated-video-file", idQuery: "videoId" }
+};
 let method = "GET";
 let target = "";
 if (options.action === "health") target = `${baseUrl}/health`;
@@ -52,8 +66,16 @@ else if (options.action === "jobs") {
     method = "POST";
     headers["content-type"] = "application/json";
   }
+} else if (options.action === "download") {
+  const route = artifactRoutes[options.artifactKind];
+  if (!route) throw new Error("--artifact-kind must be image, model3d, audio, or video.");
+  if (!options.artifactId.trim() || !options.file.trim() || !options.out.trim()) {
+    throw new Error("--artifact-id, --file, and --out are required for download.");
+  }
+  const query = new URLSearchParams({ [route.idQuery]: options.artifactId.trim(), file: options.file.trim() });
+  target = `${baseUrl}${route.path}?${query}`;
 } else {
-  throw new Error("--action must be health, manifest, jobs, get, or post-json.");
+  throw new Error("--action must be health, manifest, jobs, get, post-json, or download.");
 }
 
 const response = await fetch(target, {
@@ -62,6 +84,19 @@ const response = await fetch(target, {
   body: method === "POST" ? options.json : undefined,
   signal: AbortSignal.timeout(Number.parseInt(options.timeoutMs, 10) || 1200000)
 });
+if (options.action === "download" && response.ok) {
+  const outputPath = path.resolve(options.out);
+  try {
+    await access(outputPath);
+    throw new Error(`Refusing to overwrite existing file: ${outputPath}`);
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+  const bytes = Buffer.from(await response.arrayBuffer());
+  await writeFile(outputPath, bytes, { flag: "wx" });
+  console.log(JSON.stringify({ path: outputPath, bytes: bytes.length, contentType: response.headers.get("content-type") }, null, 2));
+  process.exit(0);
+}
 const text = await response.text();
 let payload = text;
 try { payload = text ? JSON.parse(text) : null; } catch {}
