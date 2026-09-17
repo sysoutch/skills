@@ -4,7 +4,9 @@
 
 Request `GET {baseUrl}/api/llm-tools` from the running, authenticated release. The response is the source of truth for callable functions, endpoint paths, JSON schemas, and optional generation parameters. A compatibility fallback may be available at `GET {baseUrl}/api/tool-resources?schema=1`.
 
-The standard release functions cover image, 3D model, audio, music, and video generation plus resource listing and handoff. Let the LLM select from the live manifest, validate arguments against its schemas, and call the specified path relative to `baseUrl`.
+The standard release functions cover image, 3D model, audio, music, and video generation plus generation-job inspection, resource listing, and handoff. Let the LLM select from the live manifest, validate arguments against its schemas, and call the specified path relative to `baseUrl`.
+
+Generation POST endpoints wait for completion and return the artifact on success. Do not repeat them to poll. For recovery after a client timeout, provide a unique `dashboardRequestId` in the original request and call `GET /api/generation-jobs?requestId=...`; the same route accepts `jobId`, `kind`, and `limit`.
 
 ## Tool-resource lifecycle
 

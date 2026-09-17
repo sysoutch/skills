@@ -24,3 +24,11 @@ The release may also offer image transformations, model editing/validation, spee
 - Fetch history, job status, or artifact files using endpoints made available by the release when a generation response is asynchronous or incomplete.
 - Use `Content-Type: application/json` for JSON endpoints unless the live manifest specifies a file or multipart request.
 - Surface non-success HTTP status, provider errors, and failed jobs to the user. Do not substitute a fabricated success result.
+## Generation completion and recovery
+
+Generation endpoints are synchronous: retain the original `POST` until it completes. A successful HTTP `200` contains the completed artifact, so do not repeat a generation request as a polling operation.
+
+If a caller loses the response, submit a unique `dashboardRequestId` in the original request and query `GET /api/generation-jobs?requestId=...`. `GET /api/generation-jobs` also accepts `jobId`, `kind` (`image`, `model3d`, `audio`, `music`, or `video`), and `limit`. Job records identify the status, artifact ID, and any error. Tool-resource inboxes are only for handoff delivery and must not be used as generation status.
+## Cross-platform client helper
+
+Use `node scripts/uragenow-api.mjs --action health` for read-only health checks on Windows, macOS, or Linux (Node 18+). It also supports `manifest`, `jobs`, `get`, and `post-json`; set `URAGE_API_BASE_URL` and `URAGE_API_TOKEN` in the caller's local environment when needed. Windows PowerShell users may instead run `scripts/uragenow-api.ps1`. Both helpers perform direct HTTP only and do not launch a browser.

@@ -12,6 +12,7 @@ Use this skill from a project that consumes a running URageNow Studio release. I
 - Obtain the configured API base URL and any required authorization from the user or the project's existing configuration. If a base URL is not supplied, use the local default `http://127.0.0.1:4782`; the release owner can change it with `DASHBOARD_PORT`, so do not guess another port or scan ports.
 - Confirm the selected base URL with a direct `GET {baseUrl}/health` or `GET {baseUrl}/api/llm-tools` request. If the default does not respond, ask the user for their configured base URL or port.
 - `localhost` or `127.0.0.1` works only when the caller and URageNow run on the same machine. A different device needs a reachable host, firewall rules, and any required CORS configuration.
+- Loading this skill provides instructions; it does not itself perform network requests. Use the consuming agent's command/HTTP capability explicitly. Prefer the dependency-free cross-platform [`scripts/uragenow-api.mjs`](scripts/uragenow-api.mjs) with Node 18+ on Windows, macOS, or Linux; on Windows, [`scripts/uragenow-api.ps1`](scripts/uragenow-api.ps1) is also available. Do not use ad-hoc `curl` aliases or browser automation.
 - Use direct HTTP requests to the running server. Do **not** launch a browser, navigate the Dashboard root, or use Playwright/browser automation to discover or invoke the API unless the user specifically asks to test the Dashboard UI.
 - Start with `GET {baseUrl}/api/llm-tools`. It supplies the live function manifest and is the authority for supported operations and optional fields. A successful response proves the API is reachable; the Dashboard page does not need to be open.
 - Use [`resources/llm-tool-functions.json`](resources/llm-tool-functions.json) only as an offline routing aid when the live server is temporarily unavailable.
@@ -20,7 +21,8 @@ Use this skill from a project that consumes a running URageNow Studio release. I
 
 - Read [API usage](references/api-surface.md) before integrating media, Chat Studio, or file/history workflows.
 - Read [LLM and tool resources](references/llm-and-tool-resources.md) for an LLM adapter or a handoff between two tools.
-- Call the existing generation endpoints for image, 3D, audio, music, and video. Do not reimplement their provider workflows in the client.
+- Call a generation endpoint once. These requests normally wait for completion and return the completed artifact on HTTP 200; never resend the same request to poll, because it may generate another artifact.
+- When a request was interrupted or timed out, use a caller-supplied unique `dashboardRequestId` and inspect `GET /api/generation-jobs?requestId=...`. A tool-resource inbox is not generation status.
 - For text-to-3D, first obtain an image, then invoke the live model-generation function with `imageInput`.
 - Persist an inter-tool handoff through `POST /api/tool-resources`, rather than relying solely on an in-memory or `postMessage` payload.
 

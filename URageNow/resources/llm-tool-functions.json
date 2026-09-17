@@ -56,6 +56,12 @@
         "targetToolId",
         "resourceKind"
       ]
+    },
+    {
+      "name": "urage_list_generation_jobs",
+      "method": "GET",
+      "path": "/api/generation-jobs?requestId={dashboardRequestId}",
+      "required": []
     }
   ],
   "note": "Read the live manifest before invoking optional parameters. This offline file is a routing aid.",
