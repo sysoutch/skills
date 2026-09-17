@@ -3,9 +3,13 @@
 All paths below are relative to the configured URageNow API base URL. The API server is an external runtime, not a component of the consuming project. The local default is `http://127.0.0.1:4782`. Use the base URL supplied by the project's configuration or user, then directly confirm it with `GET /health` or `GET /api/llm-tools`. Never inspect the client workspace or require source files to decide whether the server exists; do not scan ports or open a browser to discover it. Use the live `GET /api/llm-tools` manifest before constructing a generation request; providers and optional inputs can vary by the installed release.
 
 
-## Client/server boundary`r`n`r`nThis skill contains only a portable client. It knows the public HTTP contract and must not make claims about a local URageNow repository, installation layout, or server process from the consuming project's directory. When the user provides a base URL or says the server is running, test that URL directly. A successful `/health` response is the evidence needed to proceed; a failed request is the only evidence of an unavailable or misconfigured server.`r`n`r`n## Copyable helper commands
+## Client/server boundary
 
-Use the included helper before writing custom code. Node 18+ is the default on Windows, macOS, and Linux; it needs no package installation.
+This skill contains only a portable client. It knows the public HTTP contract and must not make claims about a local URageNow repository, installation layout, or server process from the consuming project's directory. When the user provides a base URL or says the server is running, test that URL directly. A successful /health response is the evidence needed to proceed; a failed request is the only evidence of an unavailable or misconfigured server.
+
+## Copyable helper commands
+
+Use the included helper before writing custom code. Node 18+ is the default on Windows, macOS, and Linux; it needs no package installation. Execute only `scripts/uragenow-api.mjs` or `scripts/uragenow-api.ps1`: never invent `.agents` paths or run a JSON file as a Node program.
 
 ```sh
 # Confirm the configured/default server, then obtain the current capabilities.
