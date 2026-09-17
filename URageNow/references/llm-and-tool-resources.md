@@ -6,7 +6,7 @@ Request `GET {baseUrl}/api/llm-tools` from the running, authenticated release. T
 
 The standard release functions cover image, 3D model, audio, music, and video generation plus generation-job inspection, resource listing, and handoff. Let the LLM select from the live manifest, validate arguments against its schemas, and call the specified path relative to `baseUrl`.
 
-Generation POST endpoints wait for completion and return the artifact on success. Each successful record includes its artifact `id`, a file-name field, and its relative download URL (`imageUrl`, `modelUrl`, `audioUrl`, or `videoUrl`). Retrieve the binary through that returned URL, or use the supplied client helper's `download` action; do not use `jobId` as a file identifier. For recovery after a client timeout, provide a unique `dashboardRequestId` in the original request and call `GET /api/generation-jobs?requestId=...`; the same route accepts `jobId`, `kind`, and `limit`.
+Generation POST endpoints wait for completion and return the artifact on success. Each successful record includes its artifact `id`, a file-name field, and its relative download URL (`imageUrl`, `modelUrl`, `audioUrl`, or `videoUrl`). Retrieve the binary through that returned URL, or use the supplied client helper's `download` action; do not use `jobId` as a file identifier. For recovery after a client timeout, provide a unique `dashboardRequestId` in the original request and call `GET /api/generation-jobs?requestId=...`; the same route accepts `jobId`, `kind`, and `limit`. On success, call `GET /api/generated-artifact?kind={kind}&id={artifactId}` to retrieve the completed artifact record and its download URL.
 
 ## Tool-resource lifecycle
 

@@ -98,6 +98,15 @@
         "id",
         "videoFileName"
       ]
+    },
+    {
+      "name": "urage_get_generated_artifact",
+      "method": "GET",
+      "path": "/api/generated-artifact?kind={kind}&id={id}",
+      "required": [
+        "kind",
+        "id"
+      ]
     }
   ],
   "note": "Read the live manifest before invoking optional parameters. This offline file is a routing aid.",

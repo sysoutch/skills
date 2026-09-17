@@ -57,6 +57,10 @@ else if (options.action === "jobs") {
   if (options.jobId.trim()) query.set("jobId", options.jobId.trim());
   if (options.kind.trim()) query.set("kind", options.kind.trim());
   target = `${baseUrl}/api/generation-jobs?${query}`;
+} else if (options.action === "artifact") {
+  if (!artifactRoutes[options.artifactKind] && options.artifactKind !== "music") throw new Error("--artifact-kind must be image, model3d, audio, music, or video.");
+  if (!options.artifactId.trim()) throw new Error("--artifact-id is required for artifact.");
+  target = `${baseUrl}/api/generated-artifact?${new URLSearchParams({kind: options.artifactKind, id: options.artifactId.trim()})}`;
 } else if (options.action === "get" || options.action === "post-json") {
   if (!options.path.trim().startsWith("/api/")) throw new Error("--path must begin with /api/.");
   target = `${baseUrl}${options.path.trim()}`;
@@ -75,7 +79,7 @@ else if (options.action === "jobs") {
   const query = new URLSearchParams({ [route.idQuery]: options.artifactId.trim(), file: options.file.trim() });
   target = `${baseUrl}${route.path}?${query}`;
 } else {
-  throw new Error("--action must be health, manifest, jobs, get, post-json, or download.");
+  throw new Error("--action must be health, manifest, jobs, artifact, get, post-json, or download.");
 }
 
 const response = await fetch(target, {

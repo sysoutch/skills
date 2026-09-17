@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-  [ValidateSet("health", "manifest", "jobs", "get", "post-json", "download")]
+  [ValidateSet("health", "manifest", "jobs", "artifact", "get", "post-json", "download")]
   [string]$Action = "health",
   [string]$BaseUrl = $(if ($env:URAGE_API_BASE_URL) { $env:URAGE_API_BASE_URL } else { "http://127.0.0.1:4782" }),
   [string]$AccessToken = $env:URAGE_API_TOKEN,
@@ -8,7 +8,7 @@ param(
   [string]$Json = "",
   [string]$DashboardRequestId = "",
   [string]$JobId = "",
-  [ValidateSet("", "image", "model3d", "audio", "video")]
+  [ValidateSet("", "image", "model3d", "audio", "music", "video")]
   [string]$ArtifactKind = "",
   [string]$ArtifactId = "",
   [string]$File = "",
@@ -36,6 +36,10 @@ switch ($Action) {
     if ($Kind) { $queryParts += "kind=$([Uri]::EscapeDataString($Kind))" }
     $target = "$base/api/generation-jobs?$($queryParts -join '&')"
     $method = "GET"
+  }
+  "artifact" {
+    if (-not $ArtifactKind -or -not $ArtifactId.Trim()) { throw "-ArtifactKind and -ArtifactId are required for artifact." }
+    $target = "$base/api/generated-artifact?kind=$([Uri]::EscapeDataString($ArtifactKind))&id=$([Uri]::EscapeDataString($ArtifactId.Trim()))"; $method = "GET"
   }
   "get" {
     if (-not $Path.Trim().StartsWith("/api/")) { throw "-Path must begin with /api/." }

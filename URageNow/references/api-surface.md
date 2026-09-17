@@ -32,13 +32,13 @@ On Windows without Node:
 .\.agents\skills\URageNow\scripts\uragenow-api.ps1 -Action download -ArtifactKind image -ArtifactId <returned-id> -File <returned-imageFileName> -OutFile <new-output-path>
 ```
 
-`dashboardRequestId` is caller-chosen and must be unique per generation attempt. It lets a client recover an interrupted response; it is not a download identifier. `imageUrl`, `modelUrl`, `audioUrl`, and `videoUrl` are paths relative to `baseUrl`, so a custom client resolves them as `{baseUrl}{returnedUrl}`.
+`dashboardRequestId` is caller-chosen and must be unique per generation attempt. It lets a client recover an interrupted response; it is not a download identifier. Recovery returns a job's `artifactId`; use `node .agents/skills/URageNow/scripts/uragenow-api.mjs --action artifact --artifact-kind image --artifact-id <artifactId>` (or the PowerShell equivalent) to retrieve the full artifact record. `imageUrl`, `modelUrl`, `audioUrl`, and `videoUrl` are paths relative to `baseUrl`, so a custom client resolves them as `{baseUrl}{returnedUrl}`.
 
 ## Failure handling
 
 | Result | Meaning | Correct next action |
 | --- | --- | --- |
-| Network timeout or lost response | The server may still be generating. | Do not repeat the POST. Query `jobs` with the original `dashboardRequestId`. |
+| Network timeout or lost response | The server may still be generating. | Do not repeat the POST. Query `jobs` with the original `dashboardRequestId`; on success, call `artifact` using the returned `kind` and `artifactId`. |
 | HTTP 400 | Invalid or unsupported request fields. | Read the error body and the live manifest, correct the input, then make a new request only if the user still approves it. |
 | HTTP 401 or 403 | Missing, invalid, or unauthorized access token. | Check `URAGE_API_TOKEN` / `x-dashboard-access-token`; do not print the token. |
 | HTTP 404 | Wrong base URL/path, or an unknown artifact id/file name. | Reconfirm `/health`, use the live manifest, and use the artifact fields returned by generation. |
@@ -57,6 +57,7 @@ Set `URAGE_API_BASE_URL` and `URAGE_API_TOKEN` only in the consuming project's l
 | Sound/audio generation | `POST /api/audio-generate` | `prompt` | audio artifact record |
 | Music generation | `POST /api/music-generate` | release-specific workflow inputs | music artifact record |
 | Video generation | `POST /api/video-generate` | `prompt` | video artifact record |
+| Recover artifact record | `GET /api/generated-artifact?kind={kind}&id={artifactId}` | job `kind` and `artifactId` | completed artifact record |
 
 The release may also offer image transformations, model editing/validation, speech, media inspection, generated-artifact history, and job-status routes. Use only routes advertised by the running release or documented by its installed API UI.
 
@@ -71,9 +72,9 @@ The release may also offer image transformations, model editing/validation, spee
 - Surface non-success HTTP status, provider errors, and failed jobs to the user. Do not substitute a fabricated success result.
 ## Generation completion and recovery
 
-Generation endpoints are synchronous: retain the original `POST` until it completes. A successful HTTP `200` contains the completed artifact, so do not repeat a generation request as a polling operation.
+Generation endpoints can take minutes. Retain the original `POST` until it completes when the calling environment allows it; otherwise, recover using the original `dashboardRequestId`. A successful HTTP `200` contains the completed artifact, so do not repeat a generation request as a polling operation.
 
-If a caller loses the response, submit a unique `dashboardRequestId` in the original request and query `GET /api/generation-jobs?requestId=...`. `GET /api/generation-jobs` also accepts `jobId`, `kind` (`image`, `model3d`, `audio`, `music`, or `video`), and `limit`. Job records identify the status, artifact ID, and any error. Tool-resource inboxes are only for handoff delivery and must not be used as generation status.
+If a caller loses the response, query `GET /api/generation-jobs?requestId=...` using the unique `dashboardRequestId` from the original request. `GET /api/generation-jobs` also accepts `jobId`, `kind` (`image`, `model3d`, `audio`, `music`, or `video`), and `limit`. On success, call `GET /api/generated-artifact?kind={kind}&id={artifactId}` to retrieve the completed record with its download URL and file name. Tool-resource inboxes are only for handoff delivery and must not be used as generation status.
 ## Cross-platform client helper
 
-Use `node .agents/skills/URageNow/scripts/uragenow-api.mjs --action health` for read-only health checks on Windows, macOS, or Linux (Node 18+). Use this helper first: it supports `manifest`, `jobs`, `get`, `post-json`, and binary `download`; set `URAGE_API_BASE_URL` and `URAGE_API_TOKEN` in the caller's local environment when needed. For example, after an image response, run `node .agents/skills/URageNow/scripts/uragenow-api.mjs --action download --artifact-kind image --artifact-id <id> --file <imageFileName> --out <new-local-path>`. It refuses to overwrite an existing output. Windows PowerShell users without Node may instead run `.\.agents\skills\URageNow\scripts\uragenow-api.ps1 -Action download -ArtifactKind image -ArtifactId <id> -File <imageFileName> -OutFile <new-local-path>`. Both helpers perform direct HTTP only and do not launch a browser.
+Use `node .agents/skills/URageNow/scripts/uragenow-api.mjs --action health` for read-only health checks on Windows, macOS, or Linux (Node 18+). Use this helper first: it supports `manifest`, `jobs`, `artifact`, `get`, `post-json`, and binary `download`; set `URAGE_API_BASE_URL` and `URAGE_API_TOKEN` in the caller's local environment when needed. For example, after an image response, run `node .agents/skills/URageNow/scripts/uragenow-api.mjs --action download --artifact-kind image --artifact-id <id> --file <imageFileName> --out <new-local-path>`. It refuses to overwrite an existing output. Windows PowerShell users without Node may instead run `.\.agents\skills\URageNow\scripts\uragenow-api.ps1 -Action download -ArtifactKind image -ArtifactId <id> -File <imageFileName> -OutFile <new-local-path>`. Both helpers perform direct HTTP only and do not launch a browser.
