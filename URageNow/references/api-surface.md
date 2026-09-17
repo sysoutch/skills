@@ -9,27 +9,27 @@ This skill contains only a portable client. It knows the public HTTP contract an
 
 ## Copyable helper commands
 
-Use the included helper before writing custom code. Node 18+ is the default on Windows, macOS, and Linux; it needs no package installation. Execute only `scripts/uragenow-api.mjs` or `scripts/uragenow-api.ps1`: never invent `.agents` paths or run a JSON file as a Node program.
+Use the included helper before writing custom code. From the consuming project root, use exactly `.agents/skills/URageNow/scripts/uragenow-api.mjs` or `.agents/skills/URageNow/scripts/uragenow-api.ps1`. The shorter `scripts/...` path is relative only to the URageNow skill folder. Never search for or execute a similarly named `./scripts/...` file in the consuming project, invent other `.agents` paths, or run a JSON file as a Node program.
 
 ```sh
 # Confirm the configured/default server, then obtain the current capabilities.
-node scripts/uragenow-api.mjs --action health
-node scripts/uragenow-api.mjs --action manifest
+node .agents/skills/URageNow/scripts/uragenow-api.mjs --action health
+node .agents/skills/URageNow/scripts/uragenow-api.mjs --action manifest
 
 # Only after the user has approved this generation request.
-node scripts/uragenow-api.mjs --action post-json --path /api/image-generate --json '{"prompt":"a small red toy robot","dashboardRequestId":"your-unique-request-id"}'
+node .agents/skills/URageNow/scripts/uragenow-api.mjs --action post-json --path /api/image-generate --json '{"prompt":"a small red toy robot","dashboardRequestId":"your-unique-request-id"}'
 
 # Save a completed image using id and imageFileName from that response.
-node scripts/uragenow-api.mjs --action download --artifact-kind image --artifact-id <returned-id> --file <returned-imageFileName> --out <new-output-path>
+node .agents/skills/URageNow/scripts/uragenow-api.mjs --action download --artifact-kind image --artifact-id <returned-id> --file <returned-imageFileName> --out <new-output-path>
 ```
 
 On Windows without Node:
 
 ```powershell
-.\scripts\uragenow-api.ps1 -Action health
-.\scripts\uragenow-api.ps1 -Action manifest
-.\scripts\uragenow-api.ps1 -Action post-json -Path /api/image-generate -Json '{"prompt":"a small red toy robot","dashboardRequestId":"your-unique-request-id"}'
-.\scripts\uragenow-api.ps1 -Action download -ArtifactKind image -ArtifactId <returned-id> -File <returned-imageFileName> -OutFile <new-output-path>
+.\.agents\skills\URageNow\scripts\uragenow-api.ps1 -Action health
+.\.agents\skills\URageNow\scripts\uragenow-api.ps1 -Action manifest
+.\.agents\skills\URageNow\scripts\uragenow-api.ps1 -Action post-json -Path /api/image-generate -Json '{"prompt":"a small red toy robot","dashboardRequestId":"your-unique-request-id"}'
+.\.agents\skills\URageNow\scripts\uragenow-api.ps1 -Action download -ArtifactKind image -ArtifactId <returned-id> -File <returned-imageFileName> -OutFile <new-output-path>
 ```
 
 `dashboardRequestId` is caller-chosen and must be unique per generation attempt. It lets a client recover an interrupted response; it is not a download identifier. `imageUrl`, `modelUrl`, `audioUrl`, and `videoUrl` are paths relative to `baseUrl`, so a custom client resolves them as `{baseUrl}{returnedUrl}`.
@@ -76,4 +76,4 @@ Generation endpoints are synchronous: retain the original `POST` until it comple
 If a caller loses the response, submit a unique `dashboardRequestId` in the original request and query `GET /api/generation-jobs?requestId=...`. `GET /api/generation-jobs` also accepts `jobId`, `kind` (`image`, `model3d`, `audio`, `music`, or `video`), and `limit`. Job records identify the status, artifact ID, and any error. Tool-resource inboxes are only for handoff delivery and must not be used as generation status.
 ## Cross-platform client helper
 
-Use `node scripts/uragenow-api.mjs --action health` for read-only health checks on Windows, macOS, or Linux (Node 18+). Use this helper first: it supports `manifest`, `jobs`, `get`, `post-json`, and binary `download`; set `URAGE_API_BASE_URL` and `URAGE_API_TOKEN` in the caller's local environment when needed. For example, after an image response, run `node scripts/uragenow-api.mjs --action download --artifact-kind image --artifact-id <id> --file <imageFileName> --out <new-local-path>`. It refuses to overwrite an existing output. Windows PowerShell users without Node may instead run `scripts/uragenow-api.ps1 -Action download -ArtifactKind image -ArtifactId <id> -File <imageFileName> -OutFile <new-local-path>`. Both helpers perform direct HTTP only and do not launch a browser.
+Use `node .agents/skills/URageNow/scripts/uragenow-api.mjs --action health` for read-only health checks on Windows, macOS, or Linux (Node 18+). Use this helper first: it supports `manifest`, `jobs`, `get`, `post-json`, and binary `download`; set `URAGE_API_BASE_URL` and `URAGE_API_TOKEN` in the caller's local environment when needed. For example, after an image response, run `node .agents/skills/URageNow/scripts/uragenow-api.mjs --action download --artifact-kind image --artifact-id <id> --file <imageFileName> --out <new-local-path>`. It refuses to overwrite an existing output. Windows PowerShell users without Node may instead run `.agents/skills/URageNow/scripts/uragenow-api.ps1 -Action download -ArtifactKind image -ArtifactId <id> -File <imageFileName> -OutFile <new-local-path>`. Both helpers perform direct HTTP only and do not launch a browser.

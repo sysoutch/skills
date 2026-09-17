@@ -12,7 +12,7 @@ Use this skill from any client project that consumes a running URageNow Studio r
 - Obtain the configured API base URL and any required authorization from the user or the project's existing configuration. If a base URL is not supplied, use the local default `http://127.0.0.1:4782`; do not guess another port or scan ports.
 - Treat a base URL supplied by the user, or their statement that URageNow is already running, as authority to contact that external server. Immediately run the supplied helper's `health` action against that URL. Never decide the server is unavailable from the client project's files. Only if the direct health request fails should you report the actual failure and ask for the configured URL or port.
 - `localhost` or `127.0.0.1` works only when the caller and URageNow run on the same machine. A different device needs a reachable host, firewall rules, and any required CORS configuration.
-- Loading this skill provides instructions; it does not itself perform network requests. Use the supplied client helper before writing a custom request: [`scripts/uragenow-api.mjs`](scripts/uragenow-api.mjs) is the cross-platform default with Node 18+ on Windows, macOS, or Linux; on Windows without Node, use [`scripts/uragenow-api.ps1`](scripts/uragenow-api.ps1). Execute only these named helper scripts or a deliberate custom HTTP client; never invent `.agents` paths, run JSON files with Node, or treat unrelated agent configuration as an API client. Do not use ad-hoc `curl` aliases or browser automation.
+- Loading this skill provides instructions; it does not itself perform network requests. From the consuming project root, the helpers are exactly `.agents/skills/URageNow/scripts/uragenow-api.mjs` and `.agents/skills/URageNow/scripts/uragenow-api.ps1`. The `scripts/...` links below are relative to this skill folder, not the consuming project root. Do not search for or run `./scripts/uragenow-api.*` in the consuming project. Use the supplied client helper before writing a custom request: [`scripts/uragenow-api.mjs`](scripts/uragenow-api.mjs) is the cross-platform default with Node 18+ on Windows, macOS, or Linux; on Windows without Node, use [`scripts/uragenow-api.ps1`](scripts/uragenow-api.ps1). Execute only these named helper scripts or a deliberate custom HTTP client; never invent `.agents` paths, run JSON files with Node, or treat unrelated agent configuration as an API client. Do not use ad-hoc `curl` aliases or browser automation.
 - Use direct HTTP requests to the running server. **Never use Playwright, browser automation, a browser window, or the Dashboard UI for API discovery, generation, polling, or downloads—even if the Dashboard is running.** Those are UI-testing tools only; use them solely when the user explicitly asks to test the Dashboard UI.
 - Start with `GET {baseUrl}/api/llm-tools`. It supplies the live function manifest and is the authority for supported operations and optional fields. A successful response proves the API is reachable; the Dashboard page does not need to be open.
 - Use [`resources/llm-tool-functions.json`](resources/llm-tool-functions.json) only as an offline routing aid when the live server is temporarily unavailable.
@@ -23,27 +23,27 @@ Use this skill from any client project that consumes a running URageNow Studio r
 Use the supplied helper before creating custom HTTP code. This contacts the external API; it does not expect a server inside the current project. With the default local server and Node 18+:
 
 ```sh
-node scripts/uragenow-api.mjs --action health
-node scripts/uragenow-api.mjs --action manifest
+node .agents/skills/URageNow/scripts/uragenow-api.mjs --action health
+node .agents/skills/URageNow/scripts/uragenow-api.mjs --action manifest
 ```
 
 When the user asks for image generation, do not write a plan, workflow summary, or example document instead. After obtaining approval when required, submit it once and keep the returned artifact record:
 
 ```sh
-node scripts/uragenow-api.mjs --action post-json --path /api/image-generate --json '{"prompt":"a small red toy robot","dashboardRequestId":"your-unique-request-id"}'
+node .agents/skills/URageNow/scripts/uragenow-api.mjs --action post-json --path /api/image-generate --json '{"prompt":"a small red toy robot","dashboardRequestId":"your-unique-request-id"}'
 ```
 
 A successful image record contains `id`, `imageFileName`, and `imageUrl`. To save that returned image locally, use the returned `id` and `imageFileName` (not a job ID):
 
 ```sh
-node scripts/uragenow-api.mjs --action download --artifact-kind image --artifact-id <returned-id> --file <returned-imageFileName> --out <new-output-path>
+node .agents/skills/URageNow/scripts/uragenow-api.mjs --action download --artifact-kind image --artifact-id <returned-id> --file <returned-imageFileName> --out <new-output-path>
 ```
 
 On Windows without Node, use the equivalent PowerShell helper:
 
 ```powershell
-.\scripts\uragenow-api.ps1 -Action health
-.\scripts\uragenow-api.ps1 -Action post-json -Path /api/image-generate -Json '{"prompt":"a small red toy robot","dashboardRequestId":"your-unique-request-id"}'
+.\.agents\skills\URageNow\scripts\uragenow-api.ps1 -Action health
+.\.agents\skills\URageNow\scripts\uragenow-api.ps1 -Action post-json -Path /api/image-generate -Json '{"prompt":"a small red toy robot","dashboardRequestId":"your-unique-request-id"}'
 ```
 
 Use a new output path: both download helpers refuse to overwrite an existing file. For complete examples and failure handling, read [API usage](references/api-surface.md).
