@@ -6,6 +6,7 @@ param(
   [string]$AccessToken = $env:URAGE_API_TOKEN,
   [string]$Path = "",
   [string]$Json = "",
+  [string]$JsonFile = "",
   [string]$DashboardRequestId = "",
   [string]$JobId = "",
   [ValidateSet("", "image", "model3d", "audio", "music", "video")]
@@ -47,7 +48,14 @@ switch ($Action) {
   }
   "post-json" {
     if (-not $Path.Trim().StartsWith("/api/")) { throw "-Path must begin with /api/." }
-    if (-not $Json.Trim()) { throw "-Json is required for post-json." }
+    $hasInlineJson = [bool]$Json.Trim()
+    $hasJsonFile = [bool]$JsonFile.Trim()
+    if ($hasInlineJson -eq $hasJsonFile) { throw "Specify exactly one of -Json or -JsonFile for post-json." }
+    if ($hasJsonFile) {
+      $resolvedJsonFile = [IO.Path]::GetFullPath($JsonFile)
+      if (-not (Test-Path -LiteralPath $resolvedJsonFile -PathType Leaf)) { throw "-JsonFile was not found: $resolvedJsonFile" }
+      $Json = [IO.File]::ReadAllText($resolvedJsonFile)
+    }
     $null = $Json | ConvertFrom-Json
     $target = "$base$($Path.Trim())"; $method = "POST"
   }

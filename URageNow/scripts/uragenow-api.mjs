@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { access, writeFile } from "node:fs/promises";
+import { access, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const defaults = {
@@ -9,6 +9,7 @@ const defaults = {
   token: process.env.URAGE_API_TOKEN || "",
   path: "",
   json: "",
+  jsonFile: "",
   dashboardRequestId: "",
   jobId: "",
   kind: "",
@@ -22,7 +23,7 @@ const defaults = {
 
 const argumentMap = new Map([
   ["--action", "action"], ["--base-url", "baseUrl"], ["--token", "token"],
-  ["--path", "path"], ["--json", "json"], ["--dashboard-request-id", "dashboardRequestId"],
+  ["--path", "path"], ["--json", "json"], ["--json-file", "jsonFile"], ["--dashboard-request-id", "dashboardRequestId"],
   ["--job-id", "jobId"], ["--kind", "kind"], ["--artifact-kind", "artifactKind"],
   ["--artifact-id", "artifactId"], ["--file", "file"], ["--out", "out"], ["--limit", "limit"], ["--timeout-ms", "timeoutMs"]
 ]);
@@ -65,7 +66,18 @@ else if (options.action === "jobs") {
   if (!options.path.trim().startsWith("/api/")) throw new Error("--path must begin with /api/.");
   target = `${baseUrl}${options.path.trim()}`;
   if (options.action === "post-json") {
-    if (!options.json.trim()) throw new Error("--json is required for post-json.");
+    if (Boolean(options.json.trim()) === Boolean(options.jsonFile.trim())) {
+      throw new Error("Specify exactly one of --json or --json-file for post-json.");
+    }
+    if (options.jsonFile.trim()) {
+      const jsonFilePath = path.resolve(options.jsonFile);
+      try {
+        options.json = await readFile(jsonFilePath, "utf8");
+      } catch (error) {
+        if (error?.code === "ENOENT") throw new Error(`--json-file was not found: ${jsonFilePath}`);
+        throw error;
+      }
+    }
     JSON.parse(options.json);
     method = "POST";
     headers["content-type"] = "application/json";

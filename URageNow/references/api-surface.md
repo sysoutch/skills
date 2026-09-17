@@ -34,6 +34,21 @@ On Windows without Node:
 
 `dashboardRequestId` is caller-chosen and must be unique per generation attempt. It lets a client recover an interrupted response; it is not a download identifier. Recovery returns a job's `artifactId`; use `node .agents/skills/URageNow/scripts/uragenow-api.mjs --action artifact --artifact-kind image --artifact-id <artifactId>` (or the PowerShell equivalent) to retrieve the full artifact record. `imageUrl`, `modelUrl`, `audioUrl`, and `videoUrl` are paths relative to `baseUrl`, so a custom client resolves them as `{baseUrl}{returnedUrl}`.
 
+
+## JSON-file fallback
+
+When an outer shell or agent runner cannot preserve inline JSON, write the payload as ordinary JSON (for example `{"prompt":"..."}`) to a local file and pass that path. Do not double-escape the quotes inside the file.
+
+```powershell
+# Native PowerShell parameters use one dash.
+.\.agents\skills\URageNow\scripts\uragenow-api.ps1 -Action post-json -Path /api/image-generate -JsonFile .\tmp-prompt.json
+```
+
+```sh
+node .agents/skills/URageNow/scripts/uragenow-api.mjs --action post-json --path /api/image-generate --json-file ./tmp-prompt.json
+```
+
+Use exactly one payload option: PowerShell `-Json` or `-JsonFile`; Node `--json` or `--json-file`.
 ## Failure handling
 
 | Result | Meaning | Correct next action |

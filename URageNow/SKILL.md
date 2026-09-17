@@ -46,7 +46,22 @@ On Windows without Node, use the equivalent PowerShell helper:
 .\.agents\skills\URageNow\scripts\uragenow-api.ps1 -Action post-json -Path /api/image-generate -Json '{"prompt":"a small red toy robot","dashboardRequestId":"your-unique-request-id"}'
 ```
 
-Use a new output path: both download helpers refuse to overwrite an existing file. For complete examples and failure handling, read [API usage](references/api-surface.md).
+Use a new output path: both download helpers refuse to overwrite an existing file.
+If the calling shell has trouble preserving inline JSON, write valid JSON to a file and pass the file path. In PowerShell, use single-dash parameter names (`-Action`, not `--action`):
+
+```powershell
+# tmp-prompt.json contains the JSON object exactly, with normal double quotes.
+.\.agents\skills\URageNow\scripts\uragenow-api.ps1 -Action post-json -Path /api/image-generate -JsonFile .\tmp-prompt.json
+```
+
+With Node:
+
+```sh
+node .agents/skills/URageNow/scripts/uragenow-api.mjs --action post-json --path /api/image-generate --json-file ./tmp-prompt.json
+```
+
+Pass either inline JSON or a JSON file, never both. Do not escape the JSON inside the file as `\"...\"`.
+For complete examples and failure handling, read [API usage](references/api-surface.md).
 ## Use the API
 
 - Read [API usage](references/api-surface.md) before integrating media, Chat Studio, or file/history workflows.
