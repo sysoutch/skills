@@ -1,0 +1,24 @@
+# URageNow Studio release API usage
+
+All paths below are relative to the configured URageNow API base URL. Use the live `GET /api/llm-tools` manifest before constructing a generation request; providers and optional inputs can vary by the installed release.
+
+## Core workflows
+
+| Operation | Endpoint | Minimum input | Expected result |
+| --- | --- | --- | --- |
+| Chat Studio response | `POST /api/ask` or `POST /api/ask-stream` | message/workflow input | chat response or stream |
+| Image generation | `POST /api/image-generate` | `prompt` | image artifact record |
+| 3D model generation | `POST /api/model3d-generate` | `imageInput` | model artifact record |
+| Sound/audio generation | `POST /api/audio-generate` | `prompt` | audio artifact record |
+| Music generation | `POST /api/music-generate` | release-specific workflow inputs | music artifact record |
+| Video generation | `POST /api/video-generate` | `prompt` | video artifact record |
+
+The release may also offer image transformations, model editing/validation, speech, media inspection, generated-artifact history, and job-status routes. Use only routes advertised by the running release or documented by its installed API UI.
+
+## Client rules
+
+- Send the server's configured authorization header or credential with every request that requires it. Do not expose a privileged token in browser code.
+- Treat a returned job or artifact identifier as the canonical reference; do not create local filesystem paths for server-side artifacts.
+- Fetch history, job status, or artifact files using endpoints made available by the release when a generation response is asynchronous or incomplete.
+- Use `Content-Type: application/json` for JSON endpoints unless the live manifest specifies a file or multipart request.
+- Surface non-success HTTP status, provider errors, and failed jobs to the user. Do not substitute a fabricated success result.

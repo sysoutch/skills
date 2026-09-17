@@ -1,0 +1,63 @@
+{
+  "manifestEndpoint": "/api/llm-tools",
+  "fallbackManifestEndpoint": "/api/tool-resources?schema=1",
+  "functions": [
+    {
+      "name": "urage_generate_image",
+      "method": "POST",
+      "path": "/api/image-generate",
+      "required": [
+        "prompt"
+      ]
+    },
+    {
+      "name": "urage_generate_model3d",
+      "method": "POST",
+      "path": "/api/model3d-generate",
+      "required": [
+        "imageInput"
+      ]
+    },
+    {
+      "name": "urage_generate_audio",
+      "method": "POST",
+      "path": "/api/audio-generate",
+      "required": [
+        "prompt"
+      ]
+    },
+    {
+      "name": "urage_generate_music",
+      "method": "POST",
+      "path": "/api/music-generate",
+      "required": []
+    },
+    {
+      "name": "urage_generate_video",
+      "method": "POST",
+      "path": "/api/video-generate",
+      "required": [
+        "prompt"
+      ]
+    },
+    {
+      "name": "urage_list_tool_resources",
+      "method": "GET",
+      "path": "/api/tool-resources?targetToolId={targetToolId}",
+      "required": [
+        "targetToolId"
+      ]
+    },
+    {
+      "name": "urage_send_tool_resource",
+      "method": "POST",
+      "path": "/api/tool-resources",
+      "required": [
+        "targetToolId",
+        "resourceKind"
+      ]
+    }
+  ],
+  "note": "Read the live manifest before invoking optional parameters. This offline file is a routing aid.",
+  "baseUrl": "Configure this per installation, for example http://127.0.0.1:PORT"
+}
