@@ -7,6 +7,9 @@ All paths below are relative to the configured URageNow API base URL. The API se
 
 This skill contains only a portable client. It knows the public HTTP contract and must not make claims about a local URageNow repository, installation layout, or server process from the consuming project's directory. When the user provides a base URL or says the server is running, test that URL directly. A successful /health response is the evidence needed to proceed; a failed request is the only evidence of an unavailable or misconfigured server.
 
+## Execute, do not reload
+
+Skill loading returns portable instructions, never a live URageNow response. The first operation after loading is the exact `health` helper command from the copied skill; after it succeeds, run `manifest` and retain both results. Do not reload the skill as an API action, and do not search or inspect the consuming workspace (`.env`, `config.json`, source, package files, or agent settings) before those commands. A helper error is the only evidence to diagnose.
 ## Copyable helper commands
 
 Use the included helper before writing custom code. From the consuming project root, use exactly `.agents/skills/URageNow/scripts/uragenow-api.mjs` or `.agents/skills/URageNow/scripts/uragenow-api.ps1`. The shorter `scripts/...` path is relative only to the URageNow skill folder. Never search for or execute a similarly named `./scripts/...` file in the consuming project, invent other `.agents` paths, or run a JSON file as a Node program.

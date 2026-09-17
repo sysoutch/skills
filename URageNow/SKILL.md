@@ -7,6 +7,21 @@ description: Connect an application or LLM to a running URageNow Studio release 
 
 Use this skill from any client project that consumes a running URageNow Studio release. The API server is intentionally external to the client project: it may already be running on the same computer or another reachable machine. Do not inspect the client workspace for URageNow source files, require a source checkout, or infer that the server is absent because this project does not contain it.
 
+## Required first action
+
+Loading this skill only makes these instructions available. It does **not** call URageNow, return server data, or reveal a failed API request. Never load the skill again as a substitute for an HTTP request and never describe its instructions as an API result.
+
+From the consuming project root, the very next action must be one of the exact helper commands below. Do this before searching, listing, or reading any workspace files, `.env` files, `config.json`, package manifests, source checkout, or agent configuration. The helper uses `URAGE_API_BASE_URL` when it is configured; otherwise it uses the local default `http://127.0.0.1:4782`.
+
+```sh
+node .agents/skills/URageNow/scripts/uragenow-api.mjs --action health
+```
+
+```powershell
+.\.agents\skills\URageNow\scripts\uragenow-api.ps1 -Action health
+```
+
+After the health command succeeds, run the matching `manifest` command once, retain those two command results as the active server state, and directly run the appropriate `post-json`, `download`, `jobs`, or `artifact` command. Do not reload this skill between these calls. If a helper command fails, report that command's actual error rather than inspecting the client workspace to guess whether the server exists.
 ## Connect
 
 - Obtain the configured API base URL and any required authorization from the user or the project's existing configuration. If a base URL is not supplied, use the local default `http://127.0.0.1:4782`; do not guess another port or scan ports.
