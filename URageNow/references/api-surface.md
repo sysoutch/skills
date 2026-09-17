@@ -10,6 +10,9 @@ This skill contains only a portable client. It knows the public HTTP contract an
 ## Execute, do not reload
 
 Skill loading returns portable instructions, never a live URageNow response. The first operation after loading is the exact `health` helper command from the copied skill; after it succeeds, run `manifest` and retain both results. Do not reload the skill as an API action, and do not search or inspect the consuming workspace (`.env`, `config.json`, source, package files, or agent settings) before those commands. A helper error is the only evidence to diagnose.
+## Agent execution contract
+
+API work is complete only when its matching helper command has run and produced a result. Narration, a loaded-skill response, a plan, or a command template is not a server action. For a requested image, execute the fixed sequence: health and manifest when not already known, one image POST, then a download using the returned image `id` and `imageFileName` to a new local output path. Preserve that artifact record and report the saved path. Do not reload this skill or create unrelated files between those operations, and do not begin a different media workflow unless the user explicitly asks for it.
 ## Copyable helper commands
 
 Use the included helper before writing custom code. From the consuming project root, use exactly `.agents/skills/URageNow/scripts/uragenow-api.mjs` or `.agents/skills/URageNow/scripts/uragenow-api.ps1`. The shorter `scripts/...` path is relative only to the URageNow skill folder. Never search for or execute a similarly named `./scripts/...` file in the consuming project, invent other `.agents` paths, or run a JSON file as a Node program.

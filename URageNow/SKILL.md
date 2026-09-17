@@ -22,6 +22,13 @@ node .agents/skills/URageNow/scripts/uragenow-api.mjs --action health
 ```
 
 After the health command succeeds, run the matching `manifest` command once, retain those two command results as the active server state, and directly run the appropriate `post-json`, `download`, `jobs`, or `artifact` command. Do not reload this skill between these calls. If a helper command fails, report that command's actual error rather than inspecting the client workspace to guess whether the server exists.
+## Execution contract
+
+A thought, explanation, loaded-skill panel, command template, or statement such as “now let me download it” is not progress. For an API operation requested by the user, run the corresponding helper command in the same workflow turn; do not pause to reload this skill, restate the plan, or search the workspace.
+
+For a plain image request, use this fixed sequence: `health` (when not already confirmed) → `manifest` (when not already obtained) → one image `post-json` call → `download` using the returned image `id` and `imageFileName` to a new user-reachable output path → report that saved path. Keep the successful artifact record in context. Do not add a 3D-model, audio, video, or other generation call unless the user explicitly asks for it.
+
+When the helper prints JSON, use that JSON as the result. Do not reload the skill to interpret it, create a summary file in place of the requested media, or replace the next helper command with commentary. If the helper fails, surface its actual error and stop rather than guessing from workspace files.
 ## Connect
 
 - Obtain the configured API base URL and any required authorization from the user or the project's existing configuration. If a base URL is not supplied, use the local default `http://127.0.0.1:4782`; do not guess another port or scan ports.
