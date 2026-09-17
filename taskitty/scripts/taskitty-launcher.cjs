@@ -704,6 +704,23 @@ async function cmdDeleteMarkdown(args) {
       fail(`${usage}\nUnknown argument: ${a}`);
     }
   }
+  const root = explicitBoard ? path.join(outPath, explicitBoard) : outPath;
+  if (!fs.existsSync(root)) { console.log(`Nothing to delete: ${root} does not exist`); return; }
+  let filesDeleted = 0;
+  let dirsRemoved = 0;
+  const sweep = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        sweep(full);
+        if (fs.readdirSync(full).length === 0) { fs.rmdirSync(full); dirsRemoved += 1; }
+      } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
+        fs.unlinkSync(full); filesDeleted += 1;
+      }
+    }
+  };
+  sweep(root);
+  console.log(`Deleted ${filesDeleted} markdown file(s) and ${dirsRemoved} folder(s) under ${root}`);
 }
 
 function excerpt(value, max) {
