@@ -5,12 +5,12 @@ description: Connect an application or LLM to a running URageNow Studio release 
 
 # URageNow Studio API Client
 
-Use this skill from a project that consumes a running URageNow Studio release. It does not require the URageNow source repository.
+Use this skill from any client project that consumes a running URageNow Studio release. The API server is intentionally external to the client project: it may already be running on the same computer or another reachable machine. Do not inspect the client workspace for URageNow source files, require a source checkout, or infer that the server is absent because this project does not contain it.
 
 ## Connect
 
-- Obtain the configured API base URL and any required authorization from the user or the project's existing configuration. If a base URL is not supplied, use the local default `http://127.0.0.1:4782`; the release owner can change it with `DASHBOARD_PORT`, so do not guess another port or scan ports.
-- Confirm the selected base URL with a direct `GET {baseUrl}/health` or `GET {baseUrl}/api/llm-tools` request. If the default does not respond, ask the user for their configured base URL or port.
+- Obtain the configured API base URL and any required authorization from the user or the project's existing configuration. If a base URL is not supplied, use the local default `http://127.0.0.1:4782`; do not guess another port or scan ports.
+- Treat a base URL supplied by the user, or their statement that URageNow is already running, as authority to contact that external server. Immediately run the supplied helper's `health` action against that URL. Never decide the server is unavailable from the client project's files. Only if the direct health request fails should you report the actual failure and ask for the configured URL or port.
 - `localhost` or `127.0.0.1` works only when the caller and URageNow run on the same machine. A different device needs a reachable host, firewall rules, and any required CORS configuration.
 - Loading this skill provides instructions; it does not itself perform network requests. Use the supplied client helper before writing a custom request: [`scripts/uragenow-api.mjs`](scripts/uragenow-api.mjs) is the cross-platform default with Node 18+ on Windows, macOS, or Linux; on Windows without Node, use [`scripts/uragenow-api.ps1`](scripts/uragenow-api.ps1). Use custom HTTP only when the helper lacks the required operation. Do not use ad-hoc `curl` aliases or browser automation.
 - Use direct HTTP requests to the running server. Do **not** launch a browser, navigate the Dashboard root, or use Playwright/browser automation to discover or invoke the API unless the user specifically asks to test the Dashboard UI.
@@ -20,14 +20,14 @@ Use this skill from a project that consumes a running URageNow Studio release. I
 
 ## Quick start
 
-Use the supplied helper before creating custom HTTP code. With the default local server and Node 18+:
+Use the supplied helper before creating custom HTTP code. This contacts the external API; it does not expect a server inside the current project. With the default local server and Node 18+:
 
 ```sh
 node scripts/uragenow-api.mjs --action health
 node scripts/uragenow-api.mjs --action manifest
 ```
 
-After the user approves image generation, submit it once and keep the returned artifact record:
+When the user asks for image generation, do not write a plan, workflow summary, or example document instead. After obtaining approval when required, submit it once and keep the returned artifact record:
 
 ```sh
 node scripts/uragenow-api.mjs --action post-json --path /api/image-generate --json '{"prompt":"a small red toy robot","dashboardRequestId":"your-unique-request-id"}'
@@ -59,5 +59,5 @@ Use a new output path: both download helpers refuse to overwrite an existing fil
 ## Authorization and results
 
 - A model selecting a function is not permission to spend money, generate media, send messages, install software, launch desktop applications, modify files, or delete data. Obtain the user's approval for those operations.
-- Return server errors and job failures to the caller. An artifact is ready only after the server returns a successful artifact record.
+- Return server errors and job failures to the caller. An artifact is ready only after the server returns a successful artifact record. Do not substitute a tutorial, command list, or generated document for an API action the user requested.
 - Keep API credentials in the consuming project's local configuration or environment, never in this skill or source control.
