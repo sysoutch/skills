@@ -62,7 +62,7 @@ The release may also offer image transformations, model editing/validation, spee
 
 ## Client rules
 
-- Call the configured API base URL directly with an HTTP client. Do not start Playwright, open `{baseUrl}/`, or automate the Dashboard page for API discovery or generation; those are UI-testing actions, not API integration.
+- Call the configured API base URL directly with an HTTP client. Never start Playwright, open `{baseUrl}/`, or automate the Dashboard page for API discovery, generation, polling, or downloads, even when the Dashboard is running; those are UI-testing actions, not API integration.
 
 - Send the server's configured authorization header or credential with every request that requires it. Do not expose a privileged token in browser code.
 - Treat a returned artifact record as the canonical download reference. It includes its `id`, file-name field, and a relative URL: `imageUrl`, `modelUrl`, `audioUrl`, or `videoUrl`. Resolve that URL against `baseUrl`, or use the supplied `download` helper action. A job ID is only for recovery/status and cannot download an artifact.
