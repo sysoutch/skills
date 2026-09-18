@@ -40,6 +40,17 @@ When the helper prints JSON, use that JSON as the result. Do not reload the skil
 - Use [`resources/llm-tool-functions.json`](resources/llm-tool-functions.json) only as an offline routing aid when the live server is temporarily unavailable.
 
 
+## Named-tool routing
+
+When the user names a URage tool, its identity is a hard requirement. Use the exact matching function advertised by the live manifest; do not replace a transformation tool with `urage_generate_image` just because both produce images. An existing image is the named tool's input, not a prompt for a new image.
+
+For **Pixel Art Converter**, first retain the source image record's `id` and `imageFileName`, then call the converter directly. Do not call `/api/image-generate` and do not open the Dashboard or Playwright:
+
+```sh
+node .agents/skills/URageNow/scripts/uragenow-api.mjs --action post-json --path /api/tools/invoke --json '{"toolId":"art__pixel-art-converter","input":{"imageId":"<source-id>","imageFileName":"<source-imageFileName>","pixelSize":8}}'
+```
+
+The response is a new image artifact record. Download it with the normal `download` action using its returned `id` and `imageFileName`. The converter accepts images already held in URage image history; if the user supplies an image that is not there, import or hand it off first through the documented API instead of generating a replacement.
 ## Quick start
 
 Use the supplied helper before creating custom HTTP code. This contacts the external API; it does not expect a server inside the current project. With the default local server and Node 18+:

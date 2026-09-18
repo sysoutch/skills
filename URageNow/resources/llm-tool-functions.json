@@ -11,6 +11,15 @@
       ]
     },
     {
+      "name": "urage_invoke_tool",
+      "method": "POST",
+      "path": "/api/tools/invoke",
+      "required": [
+        "toolId",
+        "input"
+      ]
+    },
+    {
       "name": "urage_generate_model3d",
       "method": "POST",
       "path": "/api/model3d-generate",

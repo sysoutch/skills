@@ -74,6 +74,7 @@ Set `URAGE_API_BASE_URL` and `URAGE_API_TOKEN` only in the consuming project's l
 | --- | --- | --- | --- |
 | Chat Studio response | `POST /api/ask` or `POST /api/ask-stream` | message/workflow input | chat response or stream |
 | Image generation | `POST /api/image-generate` | `prompt` | image artifact record |
+| Server-capable tool | `POST /api/tools/invoke` | `toolId`, `input` | tool result; inspect `/api/llm-tools` capabilities |
 | 3D model generation | `POST /api/model3d-generate` | `imageInput` | model artifact record |
 | Sound/audio generation | `POST /api/audio-generate` | `prompt` | audio artifact record |
 | Music generation | `POST /api/music-generate` | release-specific workflow inputs | music artifact record |

@@ -8,6 +8,9 @@ The standard release functions cover image, 3D model, audio, music, and video ge
 
 Generation POST endpoints wait for completion and return the artifact on success. Each successful record includes its artifact `id`, a file-name field, and its relative download URL (`imageUrl`, `modelUrl`, `audioUrl`, or `videoUrl`). Retrieve the binary through that returned URL, or use the supplied client helper's `download` action; do not use `jobId` as a file identifier. For recovery after a client timeout, provide a unique `dashboardRequestId` in the original request and call `GET /api/generation-jobs?requestId=...`; the same route accepts `jobId`, `kind`, and `limit`. On success, call `GET /api/generated-artifact?kind={kind}&id={artifactId}` to retrieve the completed artifact record and its download URL.
 
+## Invoke a named tool
+
+A target tool named by the user is not interchangeable with media generation. Select the exact matching live-manifest function and preserve its source artifact fields. For Pixel Art Converter, call `POST /api/tools/invoke` with `toolId: "art__pixel-art-converter"` and an `input` object containing `imageId`, `imageFileName`, and optional `pixelSize` (2–256). It returns a normal imported image artifact record. Never call `/api/image-generate` for this conversion, and never rely on browser automation or a tool-resource inbox as if either executed the converter.
 ## Tool-resource lifecycle
 
 Use persistent resources when one tool needs to pass text or an artifact to another tool:
