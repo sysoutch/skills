@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "taskitty": {
+      "type": "stdio",
+      "command": "taskitty-mcp",
+      "args": [],
+      "timeout": 300,
+      "disabled": false
+    }
+  }
+}

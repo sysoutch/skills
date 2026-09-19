@@ -1,0 +1,13 @@
+{
+  "name": "taskitty-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Portable stdio MCP bridge for the Taskitty bundled CLI.",
+  "type": "module",
+  "bin": {
+    "taskitty-mcp": "./scripts/taskitty-mcp-server.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
