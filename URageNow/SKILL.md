@@ -94,7 +94,7 @@ With Node:
 node .agents/skills/URageNow/scripts/uragenow-api.mjs --action post-json --path /api/image-generate --json-file ./tmp-prompt.json
 ```
 
-Pass either inline JSON or a JSON file, never both. Do not escape the JSON inside the file as `\"...\"`.
+Pass either inline JSON or a JSON file, never both. Do not escape the JSON inside the file as `\\"...\\"`. CRLF and LF line endings are both valid: do not switch to inline JSON or Linux to work around line endings. `Invalid JSON primitive` or a JSON syntax error means the caller supplied malformed or shell-mangled JSON, not that the line endings are wrong. JSON-file fallback accepts PNG, JPEG, and other formats Sharp can decode; Pixel Art Converter is not JPEG-only.
 For complete examples and failure handling, read [API usage](references/api-surface.md).
 ## Use the API
 
