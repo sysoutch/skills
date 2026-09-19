@@ -50,7 +50,11 @@ For **Pixel Art Converter**, first retain the source image record's `id` and `im
 node .agents/skills/URageNow/scripts/uragenow-api.mjs --action post-json --path /api/tools/invoke --json '{"toolId":"art__pixel-art-converter","input":{"imageId":"<source-id>","imageFileName":"<source-imageFileName>","pixelSize":8}}'
 ```
 
-The response is a new image artifact record. Download it with the normal `download` action using its returned `id` and `imageFileName`. The converter accepts images already held in URage image history; if the user supplies an image that is not there, import or hand it off first through the documented API instead of generating a replacement.
+The response is a new image artifact record. Download it with the normal `download` action using its returned `id` and `imageFileName`. The converter accepts images already held in URage image history. When the caller has the supplied attachment as a data URL, import it once first; use the returned source fields in every subsequent converter call. Do not generate a replacement:
+
+```sh
+node .agents/skills/URageNow/scripts/uragenow-api.mjs --action post-json --path /api/image-import --json '{"dataUrl":"data:image/png;base64,<base64-image-bytes>","fileName":"source.png"}'
+```
 
 For **Normalmap Maker** and **Image To Ascii**, preserve those same source fields and invoke the named tool. Neither operation is image generation:
 

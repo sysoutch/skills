@@ -18,6 +18,13 @@
         "toolId",
         "input"
       ]
+    },    {
+      "name": "urage_import_image",
+      "method": "POST",
+      "path": "/api/image-import",
+      "required": [
+        "dataUrl"
+      ]
     },
     {
       "name": "urage_generate_model3d",
