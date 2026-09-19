@@ -4,6 +4,7 @@
       "type": "stdio",
       "command": "uragenow-mcp",
       "args": [],
+      "timeout": 300,
       "env": {
         "URAGE_API_BASE_URL": "http://127.0.0.1:4782"
       },

@@ -35,6 +35,7 @@ $settings.mcpServers | Add-Member -NotePropertyName uragenow -NotePropertyValue 
   type = "stdio"
   command = "uragenow-mcp"
   args = @()
+  timeout = 300
   env = [pscustomobject]@{ URAGE_API_BASE_URL = "http://127.0.0.1:4782" }
   disabled = $false
 }) -Force
