@@ -7,101 +7,37 @@ const baseUrl = (process.env.URAGE_API_BASE_URL || "http://127.0.0.1:4782").trim
 const token = (process.env.URAGE_API_TOKEN || "").trim();
 const mime = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".avif": "image/avif", ".bmp": "image/bmp", ".tif": "image/tiff", ".tiff": "image/tiff" };
 const object = (properties, required = []) => ({ type: "object", properties, required, additionalProperties: false });
+const instructions = "Use URageNow MCP tools for all URage work; never use a browser or Playwright. Select the exact named transform, not image generation. Generation POST calls wait for completion: submit once and use returned artifact fields to download. Do not infer 3D generation from an image request. Keep API tokens private and obtain user approval before costly generation.";
 const tools = [
-  { name: "urage_health", description: "Check the configured URageNow API without opening a browser.", inputSchema: object({}) },
-  { name: "urage_get_manifest", description: "Read the live URageNow manifest before selecting an unfamiliar tool.", inputSchema: object({}) },
-  { name: "urage_import_image_file", description: "Import a readable local image file and return id plus imageFileName for transformations.", inputSchema: object({ sourceFile: { type: "string" }, imageFileName: { type: "string" } }, ["sourceFile"]) },
-  { name: "urage_invoke_tool", description: "Invoke an exact server-capable URage tool. Never replace a named transformation with generation.", inputSchema: object({ toolId: { type: "string" }, input: { type: "object" } }, ["toolId", "input"]) },
-  { name: "urage_convert_to_pixel_art", description: "Transform an existing URage image with Pixel Art Converter; never generate a replacement.", inputSchema: object({ imageId: { type: "string" }, imageFileName: { type: "string" }, pixelSize: { type: "number", minimum: 2, maximum: 256 } }, ["imageId", "imageFileName"]) },
-  { name: "urage_create_normal_map", description: "Transform an existing URage image with Normalmap Maker; never generate a replacement.", inputSchema: object({ imageId: { type: "string" }, imageFileName: { type: "string" }, strength: { type: "number", minimum: 0.1, maximum: 10 } }, ["imageId", "imageFileName"]) },
-  { name: "urage_convert_image_to_ascii", description: "Transform an existing URage image with Image To Ascii; returns image artifact and text.", inputSchema: object({ imageId: { type: "string" }, imageFileName: { type: "string" }, columns: { type: "number", minimum: 16, maximum: 160 } }, ["imageId", "imageFileName"]) },
-  { name: "urage_download_image", description: "Download an image artifact to a new local path without overwriting files.", inputSchema: object({ imageId: { type: "string" }, imageFileName: { type: "string" }, outputPath: { type: "string" } }, ["imageId", "imageFileName", "outputPath"]) }
+  { name: "urage_health", description: "Check the configured URageNow API.", inputSchema: object({}) },
+  { name: "urage_get_manifest", description: "Read the live URageNow media, resources, and server-tool catalog.", inputSchema: object({}) },
+  { name: "urage_generate_image", description: "Generate an image. This completes an image request; do not generate a 3D model unless explicitly requested.", inputSchema: object({ prompt: { type: "string" }, width: { type: "number" }, height: { type: "number" }, count: { type: "number" }, dashboardRequestId: { type: "string" } }, ["prompt"]) },
+  { name: "urage_generate_model3d", description: "Generate a 3D model from an image only when explicitly requested.", inputSchema: object({ imageInput: { type: "string" }, imageFileNameHint: { type: "string" }, prompt: { type: "string" }, autoPrompt: { type: "boolean" }, dashboardRequestId: { type: "string" } }, ["imageInput"]) },
+  { name: "urage_generate_audio", description: "Generate a non-musical audio asset.", inputSchema: object({ prompt: { type: "string" }, seconds: { type: "number" }, dashboardRequestId: { type: "string" } }, ["prompt"]) },
+  { name: "urage_generate_music", description: "Generate music from optional lyrics and musical tags.", inputSchema: object({ lyrics: { type: "string" }, tags: { type: "string" }, seconds: { type: "number" }, dashboardRequestId: { type: "string" } }) },
+  { name: "urage_generate_video", description: "Generate video from a prompt and optional source image.", inputSchema: object({ prompt: { type: "string" }, imageDataUrl: { type: "string" }, imageFileName: { type: "string" }, seconds: { type: "number" }, width: { type: "number" }, height: { type: "number" }, dashboardRequestId: { type: "string" } }, ["prompt"]) },
+  { name: "urage_import_image_file", description: "Import a readable local image file and return id plus imageFileName for a named transform.", inputSchema: object({ sourceFile: { type: "string" }, imageFileName: { type: "string" } }, ["sourceFile"]) },
+  { name: "urage_invoke_tool", description: "Invoke an exact server-capable tool from the live manifest. Never replace a named transform with generation.", inputSchema: object({ toolId: { type: "string" }, input: { type: "object" } }, ["toolId", "input"]) },
+  { name: "urage_convert_to_pixel_art", description: "Transform an existing URage image with Pixel Art Converter.", inputSchema: object({ imageId: { type: "string" }, imageFileName: { type: "string" }, pixelSize: { type: "number", minimum: 2, maximum: 256 } }, ["imageId", "imageFileName"]) },
+  { name: "urage_create_normal_map", description: "Transform an existing URage image with Normalmap Maker.", inputSchema: object({ imageId: { type: "string" }, imageFileName: { type: "string" }, strength: { type: "number", minimum: 0.1, maximum: 10 } }, ["imageId", "imageFileName"]) },
+  { name: "urage_convert_image_to_ascii", description: "Transform an existing image with Image To Ascii; static output is PNG and animated GIF output stays GIF.", inputSchema: object({ imageId: { type: "string" }, imageFileName: { type: "string" }, columns: { type: "number", minimum: 16, maximum: 160 }, characterSet: { type: "string", enum: ["dense", "blocks", "detailed", "classic"] }, colorMode: { type: "string", enum: ["mono", "color", "green"] } }, ["imageId", "imageFileName"]) },
+  { name: "urage_list_generation_jobs", description: "Recover an interrupted request by its dashboardRequestId; do not resend generation to poll.", inputSchema: object({ dashboardRequestId: { type: "string" }, jobId: { type: "string" }, kind: { type: "string", enum: ["image", "model3d", "audio", "music", "video"] }, limit: { type: "number" } }) },
+  { name: "urage_get_generated_artifact", description: "Read a generation artifact by kind and returned artifact id.", inputSchema: object({ kind: { type: "string", enum: ["image", "model3d", "audio", "music", "video"] }, id: { type: "string" } }, ["kind", "id"]) },
+  { name: "urage_download_artifact", description: "Download an image, model3d, audio, or video artifact to a new local file without overwriting it.", inputSchema: object({ kind: { type: "string", enum: ["image", "model3d", "audio", "music", "video"] }, id: { type: "string" }, fileName: { type: "string" }, outputPath: { type: "string" } }, ["kind", "id", "fileName", "outputPath"]) },
+  { name: "urage_list_tool_resources", description: "List persistent resources waiting for a target URage tool.", inputSchema: object({ targetToolId: { type: "string" } }, ["targetToolId"]) },
+  { name: "urage_send_tool_resource", description: "Send a persistent text or artifact resource to a target URage tool inbox.", inputSchema: object({ targetToolId: { type: "string" }, resourceKind: { type: "string" }, sourceUrl: { type: "string" }, dataUrl: { type: "string" }, textContent: { type: "string" } }, ["targetToolId", "resourceKind"]) }
 ];
-
-function requireText(value, label) {
-  if (typeof value !== "string" || !value.trim()) throw new Error(label + " is required.");
-  return value.trim();
-}
-function boundedNumber(value, label, min, max) {
-  if (value === undefined) return undefined;
-  const result = Number(value);
-  if (!Number.isFinite(result) || result < min || result > max) throw new Error(label + " must be between " + min + " and " + max + ".");
-  return result;
-}
-async function api(endpoint, method = "GET", body) {
-  const headers = { accept: "application/json" };
-  if (token) headers["x-dashboard-access-token"] = token;
-  if (body !== undefined) headers["content-type"] = "application/json";
-  const response = await fetch(baseUrl + endpoint, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(1200000) });
-  const text = await response.text();
-  let payload = text; try { payload = text ? JSON.parse(text) : null; } catch {}
-  if (!response.ok) throw new Error("URageNow API " + response.status + ": " + (typeof payload === "string" ? payload : JSON.stringify(payload)));
-  return payload;
-}
-async function importFile(args) {
-  const sourceFile = path.resolve(requireText(args.sourceFile, "sourceFile"));
-  try { await access(sourceFile); } catch { throw new Error("sourceFile was not found: " + sourceFile); }
-  const contentType = mime[path.extname(sourceFile).toLowerCase()];
-  if (!contentType) throw new Error("sourceFile must be PNG, JPEG, GIF, WebP, AVIF, BMP, TIFF, or TIF.");
-  const bytes = await readFile(sourceFile);
-  return api("/api/image-import", "POST", { dataUrl: "data:" + contentType + ";base64," + bytes.toString("base64"), fileName: typeof args.imageFileName === "string" && args.imageFileName.trim() ? args.imageFileName.trim() : path.basename(sourceFile) });
-}
+function requireText(value, label) { if (typeof value !== "string" || !value.trim()) throw new Error(label + " is required."); return value.trim(); }
+function boundedNumber(value, label, min, max) { if (value === undefined) return undefined; const result = Number(value); if (!Number.isFinite(result) || result < min || result > max) throw new Error(label + " must be between " + min + " and " + max + "."); return result; }
+function pick(args, allowed) { return Object.fromEntries(Object.entries(args).filter(([key, value]) => allowed.includes(key) && value !== undefined)); }
+async function api(endpoint, method = "GET", body) { const headers = { accept: "application/json" }; if (token) headers["x-dashboard-access-token"] = token; if (body !== undefined) headers["content-type"] = "application/json"; const response = await fetch(baseUrl + endpoint, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(1200000) }); const text = await response.text(); let payload = text; try { payload = text ? JSON.parse(text) : null; } catch {} if (!response.ok) throw new Error("URageNow API " + response.status + ": " + (typeof payload === "string" ? payload : JSON.stringify(payload))); return payload; }
+async function importFile(args) { const sourceFile = path.resolve(requireText(args.sourceFile, "sourceFile")); try { await access(sourceFile); } catch { throw new Error("sourceFile was not found: " + sourceFile); } const contentType = mime[path.extname(sourceFile).toLowerCase()]; if (!contentType) throw new Error("sourceFile must be PNG, JPEG, GIF, WebP, AVIF, BMP, TIFF, or TIF."); const bytes = await readFile(sourceFile); return api("/api/image-import", "POST", { dataUrl: "data:" + contentType + ";base64," + bytes.toString("base64"), fileName: typeof args.imageFileName === "string" && args.imageFileName.trim() ? args.imageFileName.trim() : path.basename(sourceFile) }); }
 async function invoke(toolId, input) { return api("/api/tools/invoke", "POST", { toolId, input }); }
-async function download(args) {
-  const outputPath = path.resolve(requireText(args.outputPath, "outputPath"));
-  try { await access(outputPath); throw new Error("Refusing to overwrite existing file: " + outputPath); } catch (error) { if (error && error.code !== "ENOENT") throw error; }
-  const query = new URLSearchParams({ imageId: requireText(args.imageId, "imageId"), file: requireText(args.imageFileName, "imageFileName") });
-  const response = await fetch(baseUrl + "/api/generated-image-file?" + query, { headers: token ? { "x-dashboard-access-token": token } : {}, signal: AbortSignal.timeout(1200000) });
-  if (!response.ok) throw new Error("URageNow API " + response.status + ": image download failed.");
-  const bytes = Buffer.from(await response.arrayBuffer()); await writeFile(outputPath, bytes, { flag: "wx" });
-  return { path: outputPath, bytes: bytes.length, contentType: response.headers.get("content-type") };
-}
-async function call(name, args = {}) {
-  switch (name) {
-    case "urage_health": return api("/health");
-    case "urage_get_manifest": return api("/api/llm-tools");
-    case "urage_import_image_file": return importFile(args);
-    case "urage_invoke_tool": {
-      if (!args.input || typeof args.input !== "object" || Array.isArray(args.input)) throw new Error("input must be an object.");
-      return invoke(requireText(args.toolId, "toolId"), args.input);
-    }
-    case "urage_convert_to_pixel_art": {
-      const pixelSize = boundedNumber(args.pixelSize, "pixelSize", 2, 256);
-      return invoke("art__pixel-art-converter", { imageId: requireText(args.imageId, "imageId"), imageFileName: requireText(args.imageFileName, "imageFileName"), ...(pixelSize === undefined ? {} : { pixelSize }) });
-    }
-    case "urage_create_normal_map": {
-      const strength = boundedNumber(args.strength, "strength", 0.1, 10);
-      return invoke("art__normalmap-maker", { imageId: requireText(args.imageId, "imageId"), imageFileName: requireText(args.imageFileName, "imageFileName"), ...(strength === undefined ? {} : { strength }) });
-    }
-    case "urage_convert_image_to_ascii": {
-      const columns = boundedNumber(args.columns, "columns", 16, 160);
-      return invoke("art__image-to-ascii", { imageId: requireText(args.imageId, "imageId"), imageFileName: requireText(args.imageFileName, "imageFileName"), ...(columns === undefined ? {} : { columns }) });
-    }
-    case "urage_download_image": return download(args);
-    default: throw new Error("Unknown MCP tool: " + name);
-  }
-}
+async function download(args) { const routes = { image: ["/api/generated-image-file", "imageId"], model3d: ["/api/model3d-file", "modelId"], audio: ["/api/generated-audio-file", "audioId"], music: ["/api/generated-audio-file", "audioId"], video: ["/api/generated-video-file", "videoId"] }; const route = routes[requireText(args.kind, "kind")]; if (!route) throw new Error("kind must be image, model3d, audio, music, or video."); const outputPath = path.resolve(requireText(args.outputPath, "outputPath")); try { await access(outputPath); throw new Error("Refusing to overwrite existing file: " + outputPath); } catch (error) { if (error?.code !== "ENOENT") throw error; } const query = new URLSearchParams({ [route[1]]: requireText(args.id, "id"), file: requireText(args.fileName, "fileName") }); const response = await fetch(baseUrl + route[0] + "?" + query, { headers: token ? { "x-dashboard-access-token": token } : {}, signal: AbortSignal.timeout(1200000) }); if (!response.ok) throw new Error("URageNow API " + response.status + ": artifact download failed."); const bytes = Buffer.from(await response.arrayBuffer()); await writeFile(outputPath, bytes, { flag: "wx" }); return { path: outputPath, bytes: bytes.length, contentType: response.headers.get("content-type") }; }
+async function call(name, args = {}) { switch (name) { case "urage_health": return api("/health"); case "urage_get_manifest": return api("/api/llm-tools"); case "urage_import_image_file": return importFile(args); case "urage_invoke_tool": if (!args.input || typeof args.input !== "object" || Array.isArray(args.input)) throw new Error("input must be an object."); return invoke(requireText(args.toolId, "toolId"), args.input); case "urage_convert_to_pixel_art": return invoke("art__pixel-art-converter", { imageId: requireText(args.imageId, "imageId"), imageFileName: requireText(args.imageFileName, "imageFileName"), ...pick({ pixelSize: boundedNumber(args.pixelSize, "pixelSize", 2, 256) }, ["pixelSize"]) }); case "urage_create_normal_map": return invoke("art__normalmap-maker", { imageId: requireText(args.imageId, "imageId"), imageFileName: requireText(args.imageFileName, "imageFileName"), ...pick({ strength: boundedNumber(args.strength, "strength", .1, 10) }, ["strength"]) }); case "urage_convert_image_to_ascii": return invoke("art__image-to-ascii", { imageId: requireText(args.imageId, "imageId"), imageFileName: requireText(args.imageFileName, "imageFileName"), ...pick(args, ["columns", "characterSet", "colorMode"]) }); case "urage_generate_image": return api("/api/image-generate", "POST", pick(args, ["prompt", "width", "height", "count", "dashboardRequestId"])); case "urage_generate_model3d": return api("/api/model3d-generate", "POST", pick(args, ["imageInput", "imageFileNameHint", "prompt", "autoPrompt", "dashboardRequestId"])); case "urage_generate_audio": return api("/api/audio-generate", "POST", pick(args, ["prompt", "seconds", "dashboardRequestId"])); case "urage_generate_music": return api("/api/music-generate", "POST", pick(args, ["lyrics", "tags", "seconds", "dashboardRequestId"])); case "urage_generate_video": return api("/api/video-generate", "POST", pick(args, ["prompt", "imageDataUrl", "imageFileName", "seconds", "width", "height", "dashboardRequestId"])); case "urage_list_generation_jobs": { const query = new URLSearchParams(pick(args, ["dashboardRequestId", "jobId", "kind", "limit"])); if (query.has("dashboardRequestId")) { query.set("requestId", query.get("dashboardRequestId")); query.delete("dashboardRequestId"); } return api("/api/generation-jobs?" + query); } case "urage_get_generated_artifact": return api("/api/generated-artifact?" + new URLSearchParams({ kind: requireText(args.kind, "kind"), id: requireText(args.id, "id") })); case "urage_download_artifact": return download(args); case "urage_list_tool_resources": return api("/api/tool-resources?" + new URLSearchParams({ targetToolId: requireText(args.targetToolId, "targetToolId") })); case "urage_send_tool_resource": return api("/api/tool-resources", "POST", pick(args, ["targetToolId", "resourceKind", "sourceUrl", "dataUrl", "textContent"])); default: throw new Error("Unknown MCP tool: " + name); } }
 function send(value) { process.stdout.write(JSON.stringify(value) + "\n"); }
 function respond(id, value) { send({ jsonrpc: "2.0", id, result: value }); }
 function fail(id, code, message) { send({ jsonrpc: "2.0", id, error: { code, message } }); }
-async function handle(message) {
-  if (!message || message.jsonrpc !== "2.0" || typeof message.method !== "string") throw new Error("Expected a JSON-RPC 2.0 request.");
-  if (message.method === "notifications/initialized") return;
-  if (message.method === "initialize") return respond(message.id, { protocolVersion: message.params?.protocolVersion || "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "uragenow-api", version: "1.0.0" } });
-  if (message.method === "ping") return respond(message.id, {});
-  if (message.method === "tools/list") return respond(message.id, { tools });
-  if (message.method === "tools/call") {
-    const value = await call(requireText(message.params?.name, "Tool name"), message.params?.arguments ?? {});
-    return respond(message.id, { content: [{ type: "text", text: JSON.stringify(value, null, 2) }] });
-  }
-  fail(message.id ?? null, -32601, "Unsupported MCP method: " + message.method);
-}
+async function handle(message) { if (!message || message.jsonrpc !== "2.0" || typeof message.method !== "string") throw new Error("Expected a JSON-RPC 2.0 request."); if (message.method === "notifications/initialized") return; if (message.method === "initialize") return respond(message.id, { protocolVersion: message.params?.protocolVersion || "2024-11-05", capabilities: { tools: {} }, instructions, serverInfo: { name: "uragenow-api", version: "1.1.0" } }); if (message.method === "ping") return respond(message.id, {}); if (message.method === "tools/list") return respond(message.id, { tools }); if (message.method === "tools/call") { const value = await call(requireText(message.params?.name, "Tool name"), message.params?.arguments ?? {}); return respond(message.id, { content: [{ type: "text", text: JSON.stringify(value, null, 2) }] }); } fail(message.id ?? null, -32601, "Unsupported MCP method: " + message.method); }
 const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
-lines.on("line", line => {
-  if (!line.trim()) return;
-  let message; try { message = JSON.parse(line); } catch { fail(null, -32700, "Invalid JSON-RPC message."); return; }
-  handle(message).catch(error => {
-    if (message.id !== undefined) fail(message.id, -32000, error instanceof Error ? error.message : "URageNow MCP request failed.");
-    else process.stderr.write((error instanceof Error ? error.message : "URageNow MCP request failed.") + "\n");
-  });
-});
+lines.on("line", line => { if (!line.trim()) return; let message; try { message = JSON.parse(line); } catch { fail(null, -32700, "Invalid JSON-RPC message."); return; } handle(message).catch(error => { if (message.id !== undefined) fail(message.id, -32000, error instanceof Error ? error.message : "URageNow MCP request failed."); else process.stderr.write((error instanceof Error ? error.message : "URageNow MCP request failed.") + "\n"); }); });

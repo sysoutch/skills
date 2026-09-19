@@ -43,6 +43,8 @@ $entry = @"
 [mcp_servers.uragenow]
 command = "uragenow-mcp"
 args = []
+startup_timeout_sec = 15
+tool_timeout_sec = 1200
 env = { URAGE_API_BASE_URL = "$ApiBaseUrl" }
 "@.Trim()
 $updated = if ($withoutURageNow) { "$withoutURageNow`r`n`r`n$entry`r`n" } else { "$entry`r`n" }
