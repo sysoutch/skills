@@ -5,41 +5,29 @@ description: Connect an application or LLM to a running URageNow Studio release 
 
 # URageNow Studio API Client
 
-Use this skill from any client project that consumes a running URageNow Studio release. The API server is intentionally external to the client project: it may already be running on the same computer or another reachable machine. Do not inspect the client workspace for URageNow source files, require a source checkout, or infer that the server is absent because this project does not contain it.
+## Mandatory API-first rule
 
-## Required first action
+This skill is a portable HTTP client for a **running external URageNow server**, not a source-code integration. Loading it returns instructions only; it never returns a manifest or performs a request.
 
-Loading this skill only makes these instructions available. It does **not** call URageNow, return server data, or reveal a failed API request. Never load the skill again as a substitute for an HTTP request and never describe its instructions as an API result.
-
-From the consuming project root, the very next action must be one of the exact helper commands below. Do this before searching, listing, or reading any workspace files, `.env` files, `config.json`, package manifests, source checkout, or agent configuration. The helper uses `URAGE_API_BASE_URL` when it is configured; otherwise it uses the local default `http://127.0.0.1:4782`.
+**Before any codebase search, file read, workspace inspection, browser action, or explanation, execute exactly one command from the consuming-project root:**
 
 ```sh
 node .agents/skills/URageNow/scripts/uragenow-api.mjs --action health
+node .agents/skills/URageNow/scripts/uragenow-api.mjs --action manifest
 ```
+
+On Windows without Node, use:
 
 ```powershell
 .\.agents\skills\URageNow\scripts\uragenow-api.ps1 -Action health
+.\.agents\skills\URageNow\scripts\uragenow-api.ps1 -Action manifest
 ```
 
-After the health command succeeds, run the matching `manifest` command once, retain those two command results as the active server state, and directly run the appropriate `post-json`, `download`, `jobs`, or `artifact` command. Do not reload this skill between these calls. If a helper command fails, report that command's actual error rather than inspecting the client workspace to guess whether the server exists.
-## Execution contract
+Do not search the workspace for `pixel-art`, `URageNow`, tool IDs, source code, `.env`, `config.json`, or manifests. Do not open the Dashboard, use Playwright, or use browser automation. The JSON printed by `manifest` is the only authoritative tool catalog. If either helper command fails, report its real error and stop; do not diagnose by searching the client project.
 
-A thought, explanation, loaded-skill panel, command template, or statement such as “now let me download it” is not progress. For an API operation requested by the user, run the corresponding helper command in the same workflow turn; do not pause to reload this skill, restate the plan, or search the workspace.
+Use the exact paths above. They are relative to the consuming project root. Never run `./scripts/uragenow-api.*`, run a JSON file with Node, invent an `.agents` path, or treat `resources/llm-tool-functions.json` as live discovery. That JSON file is only a compact fallback when the direct server request is unavailable.
 
-For a plain image request, use this fixed sequence: `health` (when not already confirmed) → `manifest` (when not already obtained) → one image `post-json` call → `download` using the returned image `id` and `imageFileName` to a new user-reachable output path → report that saved path. Keep the successful artifact record in context. Do not add a 3D-model, audio, video, or other generation call unless the user explicitly asks for it.
-
-When the helper prints JSON, use that JSON as the result. Do not reload the skill to interpret it, create a summary file in place of the requested media, or replace the next helper command with commentary. If the helper fails, surface its actual error and stop rather than guessing from workspace files.
-## Connect
-
-- Obtain the configured API base URL and any required authorization from the user or the project's existing configuration. If a base URL is not supplied, use the local default `http://127.0.0.1:4782`; do not guess another port or scan ports.
-- Treat a base URL supplied by the user, or their statement that URageNow is already running, as authority to contact that external server. Immediately run the supplied helper's `health` action against that URL. Never decide the server is unavailable from the client project's files. Only if the direct health request fails should you report the actual failure and ask for the configured URL or port.
-- `localhost` or `127.0.0.1` works only when the caller and URageNow run on the same machine. A different device needs a reachable host, firewall rules, and any required CORS configuration.
-- Loading this skill provides instructions; it does not itself perform network requests. From the consuming project root, the helpers are exactly `.agents/skills/URageNow/scripts/uragenow-api.mjs` and `.agents/skills/URageNow/scripts/uragenow-api.ps1`. The `scripts/...` links below are relative to this skill folder, not the consuming project root. Do not search for or run `./scripts/uragenow-api.*` in the consuming project. Use the supplied client helper before writing a custom request: [`scripts/uragenow-api.mjs`](scripts/uragenow-api.mjs) is the cross-platform default with Node 18+ on Windows, macOS, or Linux; on Windows without Node, use [`scripts/uragenow-api.ps1`](scripts/uragenow-api.ps1). Execute only these named helper scripts or a deliberate custom HTTP client; never invent `.agents` paths, run JSON files with Node, or treat unrelated agent configuration as an API client. Do not use ad-hoc `curl` aliases or browser automation.
-- Use direct HTTP requests to the running server. **Never use Playwright, browser automation, a browser window, or the Dashboard UI for API discovery, generation, polling, or downloads—even if the Dashboard is running.** Those are UI-testing tools only; use them solely when the user explicitly asks to test the Dashboard UI.
-- Start with `GET {baseUrl}/api/llm-tools`. It supplies the live function manifest and is the authority for supported operations and optional fields. A successful response proves the API is reachable; the Dashboard page does not need to be open.
-- Use [`resources/llm-tool-functions.json`](resources/llm-tool-functions.json) only as an offline routing aid when the live server is temporarily unavailable.
-
-
+After a successful manifest, immediately invoke the requested operation with the same helper. A loaded-skill panel, commentary, a plan, or another code search is not an API action. Generation is only for a generation request; never replace a named transformation with `/api/image-generate`.
 ## Named-tool routing
 
 When the user names a URage tool, its identity is a hard requirement. Use the exact matching function advertised by the live manifest; do not replace a transformation tool with `urage_generate_image` just because both produce images. An existing image is the named tool's input, not a prompt for a new image.

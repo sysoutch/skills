@@ -1,6 +1,11 @@
 {
   "manifestEndpoint": "/api/llm-tools",
   "fallbackManifestEndpoint": "/api/tool-resources?schema=1",
+  "serverTools": [
+    { "id": "art__pixel-art-converter", "title": "Pixel Art Converter", "path": "/api/tools/invoke", "requiredInput": ["imageId", "imageFileName"], "optionalInput": ["pixelSize"] },
+    { "id": "art__normalmap-maker", "title": "Normalmap Maker", "path": "/api/tools/invoke", "requiredInput": ["imageId", "imageFileName"], "optionalInput": ["strength"] },
+    { "id": "art__image-to-ascii", "title": "Image To Ascii", "path": "/api/tools/invoke", "requiredInput": ["imageId", "imageFileName"], "optionalInput": ["columns"] }
+  ],
   "functions": [
     {
       "name": "urage_generate_image",
