@@ -51,6 +51,15 @@ node .agents/skills/URageNow/scripts/uragenow-api.mjs --action post-json --path 
 ```
 
 The response is a new image artifact record. Download it with the normal `download` action using its returned `id` and `imageFileName`. The converter accepts images already held in URage image history; if the user supplies an image that is not there, import or hand it off first through the documented API instead of generating a replacement.
+
+For **Normalmap Maker** and **Image To Ascii**, preserve those same source fields and invoke the named tool. Neither operation is image generation:
+
+```sh
+node .agents/skills/URageNow/scripts/uragenow-api.mjs --action post-json --path /api/tools/invoke --json '{"toolId":"art__normalmap-maker","input":{"imageId":"<source-id>","imageFileName":"<source-imageFileName>","strength":2}}'
+node .agents/skills/URageNow/scripts/uragenow-api.mjs --action post-json --path /api/tools/invoke --json '{"toolId":"art__image-to-ascii","input":{"imageId":"<source-id>","imageFileName":"<source-imageFileName>","columns":96}}'
+```
+
+Normalmap Maker returns an imported normal-map image. Image To Ascii returns an imported preview image plus `asciiText`, `columns`, and `rows`. Use the live manifest for available tools and their exact schemas; only tools marked `execution: "server"` can be invoked through the API.
 ## Quick start
 
 Use the supplied helper before creating custom HTTP code. This contacts the external API; it does not expect a server inside the current project. With the default local server and Node 18+:

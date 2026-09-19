@@ -10,7 +10,7 @@ Generation POST endpoints wait for completion and return the artifact on success
 
 ## Invoke a named tool
 
-A target tool named by the user is not interchangeable with media generation. Select the exact matching live-manifest function and preserve its source artifact fields. For Pixel Art Converter, call `POST /api/tools/invoke` with `toolId: "art__pixel-art-converter"` and an `input` object containing `imageId`, `imageFileName`, and optional `pixelSize` (2–256). It returns a normal imported image artifact record. Never call `/api/image-generate` for this conversion, and never rely on browser automation or a tool-resource inbox as if either executed the converter.
+A target tool named by the user is not interchangeable with media generation. Select the exact matching live-manifest function and preserve its source artifact fields. Pixel Art Converter uses `toolId: "art__pixel-art-converter"` with `imageId`, `imageFileName`, and optional `pixelSize` (2–256). Normalmap Maker uses `toolId: "art__normalmap-maker"` with the same source fields and optional `strength` (0.1–10). Image To Ascii uses `toolId: "art__image-to-ascii"` with the same source fields and optional `columns` (16–160); it returns an imported preview-image artifact plus `asciiText`. All three use `POST /api/tools/invoke` and return new derived artifacts. Never call `/api/image-generate` for these conversions, and never rely on browser automation or a tool-resource inbox as if either executed the converter.
 ## Tool-resource lifecycle
 
 Use persistent resources when one tool needs to pass text or an artifact to another tool:
