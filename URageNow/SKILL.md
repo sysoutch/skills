@@ -34,6 +34,8 @@ When the client exposes URageNow MCP tools, use them instead of reloading this s
 
 For Cline, run [`scripts/install-uragenow-mcp.ps1`](scripts/install-uragenow-mcp.ps1) once after copying this skill. It installs the local `uragenow-mcp` command, ensures npm's global bin directory is on the user `PATH`, and adds the path-free `uragenow` entry from [`resources/cline-mcp-server.json`](resources/cline-mcp-server.json) without replacing other MCP servers. Restart or reload Cline afterward. Keep this skill too: it tells the LLM when it must use an exact named tool and provides a direct-HTTP fallback if MCP is unavailable.
 
+For Codex, run [`scripts/install-uragenow-codex-mcp.ps1`](scripts/install-uragenow-codex-mcp.ps1). It finds the current user's Codex config through `USERPROFILE`, installs the same path-free command, and updates only `[mcp_servers.uragenow]` in `config.toml`; existing MCP servers remain untouched. Restart Codex afterward so it receives the updated user `PATH`. Pass `-ApiBaseUrl` when the Studio API uses a non-default port.
+
 ## Named-tool routing
 
 When the user names a URage tool, its identity is a hard requirement. Use the exact matching function advertised by the live manifest; do not replace a transformation tool with `urage_generate_image` just because both produce images. An existing image is the named tool's input, not a prompt for a new image.
@@ -67,7 +69,7 @@ node .agents/skills/URageNow/scripts/uragenow-api.mjs --action post-json --path 
 node .agents/skills/URageNow/scripts/uragenow-api.mjs --action post-json --path /api/tools/invoke --json '{"toolId":"art__image-to-ascii","input":{"imageId":"<source-id>","imageFileName":"<source-imageFileName>","columns":96}}'
 ```
 
-Normalmap Maker returns an imported normal-map image. Image To Ascii returns an imported preview image plus `asciiText`, `columns`, and `rows`. Use the live manifest for available tools and their exact schemas; only tools marked `execution: "server"` can be invoked through the API.
+Normalmap Maker returns an imported normal-map image. Image To Ascii defaults to Detailed characters and Original colors. It returns a rendered PNG for a static source or an animated GIF for an animated GIF source, plus `asciiText`, `columns`, `rows`, `frames`, and `format`. Use the live manifest for available tools and their exact schemas; only tools marked `execution: "server"` can be invoked through the API.
 ## Quick start
 
 Use the supplied helper before creating custom HTTP code. This contacts the external API; it does not expect a server inside the current project. With the default local server and Node 18+:

@@ -4,7 +4,7 @@
   "serverTools": [
     { "id": "art__pixel-art-converter", "title": "Pixel Art Converter", "path": "/api/tools/invoke", "requiredInput": ["imageId", "imageFileName"], "optionalInput": ["pixelSize"] },
     { "id": "art__normalmap-maker", "title": "Normalmap Maker", "path": "/api/tools/invoke", "requiredInput": ["imageId", "imageFileName"], "optionalInput": ["strength"] },
-    { "id": "art__image-to-ascii", "title": "Image To Ascii", "path": "/api/tools/invoke", "requiredInput": ["imageId", "imageFileName"], "optionalInput": ["columns"] }
+    { "id": "art__image-to-ascii", "title": "Image To Ascii", "path": "/api/tools/invoke", "requiredInput": ["imageId", "imageFileName"], "optionalInput": ["columns", "characterSet", "colorMode"] }
   ],
   "functions": [
     {
