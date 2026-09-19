@@ -7,7 +7,7 @@ description: Use the URageNow MCP server for URage Studio media generation, name
 
 Use the configured `uragenow` MCP server first. It exposes the live media API, server-capable tools, artifact downloads, generation recovery, and persistent tool-resource handoffs. MCP tool descriptions and server instructions are the operational contract; loading this skill does not perform an API request.
 
-Do not use browser automation or Playwright for URageNow. For a named tool, call its exact MCP tool or `urage_invoke_tool`; never substitute generic image generation. A successful generation returns the artifact fields needed for download. Do not infer 3D generation from an image request.
+Do not use browser automation or Playwright for URageNow. For a named tool, call its exact MCP tool or `urage_invoke_tool`; never substitute generic image generation. A successful generation returns the artifact fields needed for download. For 3D from a generated image, pass its returned `id` and `imageFileName` to `urage_generate_model3d_from_image`; it retrieves the source bytes internally. Do not pass a relative download URL as `imageInput`. Do not infer 3D generation from an image request.
 
 ## Setup and fallback
 
