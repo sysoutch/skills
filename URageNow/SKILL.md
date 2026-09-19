@@ -32,7 +32,7 @@ After a successful manifest, immediately invoke the requested operation with the
 
 When the client exposes URageNow MCP tools, use them instead of reloading this skill, searching the workspace, or manually quoting JSON. The MCP server provides callable `urage_import_image_file`, `urage_convert_to_pixel_art`, `urage_create_normal_map`, `urage_convert_image_to_ascii`, and `urage_download_image` tools. It connects only to the configured running API and does not require a URageNow source checkout.
 
-For Cline, add the `uragenow` entry from [`resources/cline-mcp-server.json`](resources/cline-mcp-server.json) to its MCP settings and replace `<absolute-path-to-project>` with the absolute path to the project that contains this copied skill. Restart or reload Cline after changing MCP settings. Keep this skill too: it tells the LLM when it must use an exact named tool and provides a direct-HTTP fallback if MCP is unavailable.
+For Cline, run [`scripts/install-uragenow-mcp.ps1`](scripts/install-uragenow-mcp.ps1) once after copying this skill. It installs the local `uragenow-mcp` command, ensures npm's global bin directory is on the user `PATH`, and adds the path-free `uragenow` entry from [`resources/cline-mcp-server.json`](resources/cline-mcp-server.json) without replacing other MCP servers. Restart or reload Cline afterward. Keep this skill too: it tells the LLM when it must use an exact named tool and provides a direct-HTTP fallback if MCP is unavailable.
 
 ## Named-tool routing
 

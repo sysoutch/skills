@@ -1,0 +1,13 @@
+{
+  "name": "uragenow-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Portable stdio MCP bridge for a running URageNow Studio API.",
+  "type": "module",
+  "bin": {
+    "uragenow-mcp": "./scripts/uragenow-mcp-server.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
