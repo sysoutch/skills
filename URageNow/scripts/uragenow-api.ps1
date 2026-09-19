@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-  [ValidateSet("health", "manifest", "jobs", "artifact", "get", "post-json", "download")]
+  [ValidateSet("health", "manifest", "jobs", "artifact", "get", "post-json", "import-image-file", "download")]
   [string]$Action = "health",
   [string]$BaseUrl = $(if ($env:URAGE_API_BASE_URL) { $env:URAGE_API_BASE_URL } else { "http://127.0.0.1:4782" }),
   [string]$AccessToken = $env:URAGE_API_TOKEN,
@@ -14,6 +14,8 @@ param(
   [string]$ArtifactId = "",
   [string]$File = "",
   [string]$OutFile = "",
+  [string]$SourceFile = "",
+  [string]$ImageFileName = "",
   [ValidateSet("", "image", "model3d", "audio", "music", "video")]
   [string]$Kind = "",
   [ValidateRange(1, 250)]
@@ -45,6 +47,16 @@ switch ($Action) {
   "get" {
     if (-not $Path.Trim().StartsWith("/api/")) { throw "-Path must begin with /api/." }
     $target = "$base$($Path.Trim())"; $method = "GET"
+  }
+  "import-image-file" {
+    if (-not $SourceFile.Trim()) { throw "-SourceFile is required for import-image-file." }
+    $resolvedSourceFile = [IO.Path]::GetFullPath($SourceFile)
+    if (-not (Test-Path -LiteralPath $resolvedSourceFile -PathType Leaf)) { throw "-SourceFile was not found: $resolvedSourceFile" }
+    $mimeType = switch ([IO.Path]::GetExtension($resolvedSourceFile).ToLowerInvariant()) {
+      ".png" { "image/png" }; ".jpg" { "image/jpeg" }; ".jpeg" { "image/jpeg" }; ".gif" { "image/gif" }; ".webp" { "image/webp" }; ".avif" { "image/avif" }; ".bmp" { "image/bmp" }; ".tif" { "image/tiff" }; ".tiff" { "image/tiff" }; default { throw "-SourceFile must use a supported image extension (.png, .jpg, .jpeg, .gif, .webp, .avif, .bmp, .tif, or .tiff)." }
+    }
+    $Json = @{ dataUrl = "data:$mimeType;base64,$([Convert]::ToBase64String([IO.File]::ReadAllBytes($resolvedSourceFile)))"; fileName = $(if ($ImageFileName.Trim()) { $ImageFileName.Trim() } else { [IO.Path]::GetFileName($resolvedSourceFile) }) } | ConvertTo-Json -Compress
+    $target = "$base/api/image-import"; $method = "POST"
   }
   "post-json" {
     if (-not $Path.Trim().StartsWith("/api/")) { throw "-Path must begin with /api/." }
@@ -81,7 +93,7 @@ try {
     [pscustomobject]@{ path = $resolvedOutFile; bytes = (Get-Item -LiteralPath $resolvedOutFile).Length } | ConvertTo-Json
     return
   }
-  if ($Action -eq "post-json") { $parameters["ContentType"] = "application/json"; $parameters["Body"] = $Json }
+  if ($Action -eq "post-json" -or $Action -eq "import-image-file") { $parameters["ContentType"] = "application/json"; $parameters["Body"] = $Json }
   Invoke-RestMethod @parameters | ConvertTo-Json -Depth 20
 } catch {
   $detail = $_.ErrorDetails.Message

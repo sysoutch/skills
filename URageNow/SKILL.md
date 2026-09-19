@@ -38,7 +38,17 @@ For **Pixel Art Converter**, first retain the source image record's `id` and `im
 node .agents/skills/URageNow/scripts/uragenow-api.mjs --action post-json --path /api/tools/invoke --json '{"toolId":"art__pixel-art-converter","input":{"imageId":"<source-id>","imageFileName":"<source-imageFileName>","pixelSize":8}}'
 ```
 
-The response is a new image artifact record. Download it with the normal `download` action using its returned `id` and `imageFileName`. The converter accepts images already held in URage image history. When the caller has the supplied attachment as a data URL, import it once first; use the returned source fields in every subsequent converter call. Do not generate a replacement:
+The response is a new image artifact record. Download it with the normal `download` action using its returned `id` and `imageFileName`. The converter accepts images already held in URage image history. For a local attachment, import it once with the file helper—this is preferred because it avoids manually constructing JSON or base64—then use the returned source fields in every subsequent converter call. Do not generate a replacement:
+
+```sh
+node .agents/skills/URageNow/scripts/uragenow-api.mjs --action import-image-file --source-file <local-image-path> --image-file-name source.png
+```
+
+```powershell
+.\.agents\skills\URageNow\scripts\uragenow-api.ps1 -Action import-image-file -SourceFile <local-image-path> -ImageFileName source.png
+```
+
+Use `POST /api/image-import` only when the caller has attachment bytes as a data URL but no readable local file:
 
 ```sh
 node .agents/skills/URageNow/scripts/uragenow-api.mjs --action post-json --path /api/image-import --json '{"dataUrl":"data:image/png;base64,<base64-image-bytes>","fileName":"source.png"}'

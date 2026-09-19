@@ -18,14 +18,16 @@ const defaults = {
   file: "",
   out: "",
   limit: "50",
-  timeoutMs: "1200000"
+  timeoutMs: "1200000",
+  sourceFile: "",
+  imageFileName: ""
 };
 
 const argumentMap = new Map([
   ["--action", "action"], ["--base-url", "baseUrl"], ["--token", "token"],
   ["--path", "path"], ["--json", "json"], ["--json-file", "jsonFile"], ["--dashboard-request-id", "dashboardRequestId"],
   ["--job-id", "jobId"], ["--kind", "kind"], ["--artifact-kind", "artifactKind"],
-  ["--artifact-id", "artifactId"], ["--file", "file"], ["--out", "out"], ["--limit", "limit"], ["--timeout-ms", "timeoutMs"]
+  ["--artifact-id", "artifactId"], ["--file", "file"], ["--out", "out"], ["--limit", "limit"], ["--timeout-ms", "timeoutMs"], ["--source-file", "sourceFile"], ["--image-file-name", "imageFileName"]
 ]);
 const options = {...defaults};
 for (let index = 2; index < process.argv.length; index += 2) {
@@ -62,6 +64,27 @@ else if (options.action === "jobs") {
   if (!artifactRoutes[options.artifactKind] && options.artifactKind !== "music") throw new Error("--artifact-kind must be image, model3d, audio, music, or video.");
   if (!options.artifactId.trim()) throw new Error("--artifact-id is required for artifact.");
   target = `${baseUrl}/api/generated-artifact?${new URLSearchParams({kind: options.artifactKind, id: options.artifactId.trim()})}`;
+} else if (options.action === "import-image-file") {
+  if (!options.sourceFile.trim()) throw new Error("--source-file is required for import-image-file.");
+  const sourcePath = path.resolve(options.sourceFile);
+  let imageBytes;
+  try {
+    imageBytes = await readFile(sourcePath);
+  } catch (error) {
+    if (error?.code === "ENOENT") throw new Error(`--source-file was not found: ${sourcePath}`);
+    throw error;
+  }
+  const mimeTypes = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".avif": "image/avif", ".bmp": "image/bmp", ".tif": "image/tiff", ".tiff": "image/tiff" };
+  const extension = path.extname(sourcePath).toLowerCase();
+  const mimeType = mimeTypes[extension];
+  if (!mimeType) throw new Error("--source-file must use a supported image extension (.png, .jpg, .jpeg, .gif, .webp, .avif, .bmp, .tif, or .tiff).");
+  target = `${baseUrl}/api/image-import`;
+  options.json = JSON.stringify({
+    dataUrl: `data:${mimeType};base64,${imageBytes.toString("base64")}`,
+    fileName: options.imageFileName.trim() || path.basename(sourcePath)
+  });
+  method = "POST";
+  headers["content-type"] = "application/json";
 } else if (options.action === "get" || options.action === "post-json") {
   if (!options.path.trim().startsWith("/api/")) throw new Error("--path must begin with /api/.");
   target = `${baseUrl}${options.path.trim()}`;
@@ -91,7 +114,7 @@ else if (options.action === "jobs") {
   const query = new URLSearchParams({ [route.idQuery]: options.artifactId.trim(), file: options.file.trim() });
   target = `${baseUrl}${route.path}?${query}`;
 } else {
-  throw new Error("--action must be health, manifest, jobs, artifact, get, post-json, or download.");
+  throw new Error("--action must be health, manifest, jobs, artifact, get, post-json, import-image-file, or download.");
 }
 
 const response = await fetch(target, {
