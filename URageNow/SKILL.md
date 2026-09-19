@@ -28,6 +28,12 @@ Do not search the workspace for `pixel-art`, `URageNow`, tool IDs, source code, 
 Use the exact paths above. They are relative to the consuming project root. Never run `./scripts/uragenow-api.*`, run a JSON file with Node, invent an `.agents` path, or treat `resources/llm-tool-functions.json` as live discovery. That JSON file is only a compact fallback when the direct server request is unavailable.
 
 After a successful manifest, immediately invoke the requested operation with the same helper. A loaded-skill panel, commentary, a plan, or another code search is not an API action. Generation is only for a generation request; never replace a named transformation with `/api/image-generate`.
+## Preferred MCP route
+
+When the client exposes URageNow MCP tools, use them instead of reloading this skill, searching the workspace, or manually quoting JSON. The MCP server provides callable `urage_import_image_file`, `urage_convert_to_pixel_art`, `urage_create_normal_map`, `urage_convert_image_to_ascii`, and `urage_download_image` tools. It connects only to the configured running API and does not require a URageNow source checkout.
+
+For Cline, add the `uragenow` entry from [`resources/cline-mcp-server.json`](resources/cline-mcp-server.json) to its MCP settings and replace `<absolute-path-to-project>` with the absolute path to the project that contains this copied skill. Restart or reload Cline after changing MCP settings. Keep this skill too: it tells the LLM when it must use an exact named tool and provides a direct-HTTP fallback if MCP is unavailable.
+
 ## Named-tool routing
 
 When the user names a URage tool, its identity is a hard requirement. Use the exact matching function advertised by the live manifest; do not replace a transformation tool with `urage_generate_image` just because both produce images. An existing image is the named tool's input, not a prompt for a new image.

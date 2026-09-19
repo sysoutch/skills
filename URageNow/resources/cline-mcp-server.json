@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "uragenow": {
+      "command": "node",
+      "args": ["<absolute-path-to-project>/.agents/skills/URageNow/scripts/uragenow-mcp-server.mjs"],
+      "env": { "URAGE_API_BASE_URL": "http://127.0.0.1:4782" }
+    }
+  }
+}
