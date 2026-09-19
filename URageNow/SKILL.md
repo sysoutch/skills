@@ -44,7 +44,7 @@ For **Pixel Art Converter**, first retain the source image record's `id` and `im
 node .agents/skills/URageNow/scripts/uragenow-api.mjs --action post-json --path /api/tools/invoke --json '{"toolId":"art__pixel-art-converter","input":{"imageId":"<source-id>","imageFileName":"<source-imageFileName>","pixelSize":8}}'
 ```
 
-The response is a new image artifact record. Download it with the normal `download` action using its returned `id` and `imageFileName`. The converter accepts images already held in URage image history. For a local attachment, import it once with the file helper—this is preferred because it avoids manually constructing JSON or base64—then use the returned source fields in every subsequent converter call. Do not generate a replacement:
+The response is a new image artifact record. Download or return this response's `id` and `imageFileName`, never the source import record. Do not report success until the returned converter artifact—not the original image—has been returned or downloaded. The converter accepts images already held in URage image history. For a local attachment, import it once with the file helper—this is preferred because it avoids manually constructing JSON or base64—then use the returned source fields in every subsequent converter call. Do not generate a replacement:
 
 ```sh
 node .agents/skills/URageNow/scripts/uragenow-api.mjs --action import-image-file --source-file <local-image-path> --image-file-name source.png
