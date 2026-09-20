@@ -28,7 +28,7 @@ const tools = [
   { name: "taskitty_set_task_state", description: "Set one task state. Re-read the board afterwards because workflow routing can move the task.", inputSchema: object({ taskId: positiveInteger, state: { type: "string", enum: ["doing", "not_doing", "done", "not_done", "on_hold", "not_on_hold"] }, workspace: optionalWorkspace }, ["taskId", "state"]) },
   { name: "taskitty_set_task_tag", description: "Add or remove one existing tag from a task.", inputSchema: object({ taskId: positiveInteger, tagId: positiveInteger, present: { type: "boolean" }, workspace: optionalWorkspace }, ["taskId", "tagId", "present"]) },
   { name: "taskitty_add_comment", description: "Add a progress comment to a task.", inputSchema: object({ taskId: positiveInteger, message: { type: "string", minLength: 1, maxLength: 50000 }, workspace: optionalWorkspace }, ["taskId", "message"]) },
-  { name: "taskitty_add_reflection", description: "Create Taskitty's structured finishing reflection. Call before setting a task done; every non-empty todos line creates a new task.", inputSchema: object({ taskId: positiveInteger, cause: { type: "string", maxLength: 50000 }, solution: { type: "string", maxLength: 50000 }, troubles: { type: "string", maxLength: 50000 }, findings: { type: "string", maxLength: 50000 }, todos: { type: "string", maxLength: 50000 }, other: { type: "string", maxLength: 50000 }, createBlogPost: { type: "boolean" }, createFollowUpTask: { type: "boolean" }, workspace: optionalWorkspace }, ["taskId"]) },
+  { name: "taskitty_add_reflection", description: "Create Taskitty's structured finishing reflection. Call before setting a task done; every non-empty todos line creates a new task.", inputSchema: object({ taskId: positiveInteger, cause: { type: "string", maxLength: 50000 }, solution: { type: "string", maxLength: 50000 }, troubles: { type: "string", maxLength: 50000 }, findings: { type: "string", maxLength: 50000 }, todos: { type: "string", maxLength: 50000, description: "Optional; omit or pass an empty string for no follow-up tasks. Every non-empty line creates one new task." }, other: { type: "string", maxLength: 50000 }, createBlogPost: { type: "boolean" }, createFollowUpTask: { type: "boolean" }, workspace: optionalWorkspace }, ["taskId"]) },
   { name: "taskitty_export_board", description: "Export board state to Markdown. outputDirectory must be inside the project memory-bank/exports directory.", inputSchema: object({ boardId: positiveInteger, outputDirectory: { type: "string", minLength: 1 }, workspace: optionalWorkspace }, ["boardId", "outputDirectory"]) },
 ];
 
@@ -85,7 +85,7 @@ async function call(name, args = {}) {
     case "taskitty_add_comment": return runCli("comment", [positive(args.taskId, "taskId"), requireText(args.message, "message")], args.workspace);
     case "taskitty_add_reflection": {
       const flags = [];
-      for (const property of ["cause", "solution", "troubles", "findings", "todos", "other"]) if (args[property] !== undefined) flags.push(`--${property}`, requireText(args[property], property));
+      for (const property of ["cause", "solution", "troubles", "findings", "todos", "other"]) { const value = args[property]; if (value === undefined || String(value).trim() === "") continue; flags.push(`--${property}`, requireText(value, property)); }
       if (args.createBlogPost === true) flags.push("--blog");
       if (args.createFollowUpTask === true) flags.push("--follow-up");
       return runCli("reflections", [positive(args.taskId, "taskId"), ...flags], args.workspace);
