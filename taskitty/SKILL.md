@@ -7,6 +7,10 @@ description: Use the Taskitty MCP server to inspect and update local Taskitty bo
 
 Use the configured `taskitty` MCP server first. It exposes safe, typed Taskitty operations through the bundled CLI; it does not expose the local API token or arbitrary shell commands.
 
+## Workspace selection (always explicit)
+
+The user can change the globally active workspace at any time from the Taskitty GUI, so an MCP call without a `workspace` argument may silently hit the wrong database ("task not found", wrong board). Therefore: when `taskitty.json` exists in the project root, pass its `databasePath` as the explicit `workspace` argument on every taskitty MCP call (list_boards, get_board, list_tasks, get_task, create/update/comment/reflection/state/tag, export, ...). Omit it only when the user explicitly names a different workspace. The bundled CLI/launcher scripts already auto-select `taskitty.json`, so this rule applies to the MCP tools.
+
 Inspect the board and affected task before changing it. Keep title, description, tags, members, start date, and due date current. Add progress as comments. Before marking work done, save a structured reflection with accurate findings; non-empty reflection todos create follow-up tasks. Re-read the board after a workflow state change because routing may move the task.
 
 Never use raw HTTP, browser automation, Playwright, destructive deletes, or a made-up command for Taskitty. Use only registered workspaces.
