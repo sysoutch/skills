@@ -2,6 +2,10 @@
 
 Use the bundled CLI for all Taskitty operations. Never call the API directly.
 
+## Newly created ids
+
+Never guess or assume the id of a newly created board, list, task, tag, member, or comment — other items may have been added in the meantime, so ids are not predictable. Use only the `id=` value printed by the creation command; if you missed it, re-list (`boards`, `board`, `list-tasks`, `tags`, `members`) and match by name instead of assuming a number.
+
 ## CLI entry points
 
 Windows without Node:
