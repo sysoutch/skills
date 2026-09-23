@@ -490,6 +490,67 @@ async function cmdDeleteList(args) {
   console.log(`Deleted list id=${r.id}`);
 }
 
+async function cmdWorkspaceGroups() {
+  // Registry-level listing of the named workspace groups (folders) with their stable aliases and
+  // parents. No --workspace applies: this reads workspaces.json, not a database.
+  const groups = (await api('POST', '/v1/workspace-groups', {})) || [];
+  if (!groups.length) console.log('(no workspace groups)');
+  for (const g of groups) {
+    const parent = g.parent_id != null ? ` [parent=${g.parent_id}]` : '';
+    console.log(`${g.id}  ${g.name} (alias=${g.alias})${parent}`);
+  }
+}
+
+async function cmdCreateWorkspace(args) {
+  // Creates + registers a new workflow database in Taskitty's data directory - the API equivalent
+  // of the desktop "New workspace" action. Registry-level: --workspace does not apply here. The
+  // optional group assignment takes an existing group by id or stable alias (mutually exclusive).
+  const usage = 'Usage: taskitty create-workspace "name" [--group-id N | --group-alias X]';
+  if (!args[0]) fail(usage);
+  let groupId = null, groupAlias = null;
+  for (let i = 1; i < args.length; i++) {
+    const a = String(args[i]);
+    if (a === '--group-id') {
+      if (args[++i] === undefined) fail(`${usage}\nMissing id after --group-id`);
+      groupId = Number(String(args[i]).trim());
+      if (!Number.isInteger(groupId) || groupId <= 0) fail(`${usage}\n--group-id must be a whole number`);
+    } else if (a === '--group-alias') {
+      if (args[++i] === undefined) fail(`${usage}\nMissing alias after --group-alias`);
+      groupAlias = String(args[i]).trim();
+    } else fail(`${usage}\nUnknown flag: ${a}`);
+  }
+  const body = { name: payloadArg(args[0]) };
+  if (groupId !== null) body.group_id = groupId;
+  if (groupAlias !== null) body.group_alias = groupAlias;
+  const r = await api('POST', '/v1/workspaces/create', body);
+  console.log(`Created workspace ${r.name} at ${r.path} (alias=${r.alias})${r.group_id != null ? ` in group ${r.group_id}` : ''}`);
+}
+
+async function cmdCreateGroup(args) {
+  // Creates a named workspace group (folder) in the registry - the API equivalent of the desktop
+  // "New folder" action. Registry-level: --workspace does not apply here. The optional parent is
+  // an existing group by id or stable alias (mutually exclusive); omit both for top-level.
+  const usage = 'Usage: taskitty create-group "name" [--parent-id N | --parent-alias X]';
+  if (!args[0]) fail(usage);
+  let parentId = null, parentAlias = null;
+  for (let i = 1; i < args.length; i++) {
+    const a = String(args[i]);
+    if (a === '--parent-id') {
+      if (args[++i] === undefined) fail(`${usage}\nMissing id after --parent-id`);
+      parentId = Number(String(args[i]).trim());
+      if (!Number.isInteger(parentId) || parentId <= 0) fail(`${usage}\n--parent-id must be a whole number`);
+    } else if (a === '--parent-alias') {
+      if (args[++i] === undefined) fail(`${usage}\nMissing alias after --parent-alias`);
+      parentAlias = String(args[i]).trim();
+    } else fail(`${usage}\nUnknown flag: ${a}`);
+  }
+  const body = { name: payloadArg(args[0]) };
+  if (parentId !== null) body.parent_id = parentId;
+  if (parentAlias !== null) body.parent_alias = parentAlias;
+  const r = await api('POST', '/v1/workspace-groups/create', body);
+  console.log(`Created group id=${r.id} "${r.name}" (alias=${r.alias})${r.parent_id != null ? ` under group ${r.parent_id}` : ''}`);
+}
+
 async function cmdProjectConfig(args) {
   // Writes taskitty.json into an existing project directory through the API. The workspace is
   // selected exactly like for other actions (--workspace flag, then ./taskitty.json in the cwd,
@@ -850,6 +911,9 @@ switch (action) {
   case 'create-board': run(() => cmdCreateBoard(rest)); break;
   case 'create-list': run(() => cmdCreateList(rest)); break;
   case 'delete-list': run(() => cmdDeleteList(rest)); break;
+  case 'workspace-groups': run(cmdWorkspaceGroups); break;
+  case 'create-workspace': run(() => cmdCreateWorkspace(rest)); break;
+  case 'create-group': run(() => cmdCreateGroup(rest)); break;
   case 'project-config': run(() => cmdProjectConfig(rest)); break;
   case 'delete-board': run(() => cmdDeleteBoard(rest)); break;
   case 'board': run(() => cmdBoard(rest)); break;
@@ -902,6 +966,8 @@ switch (action) {
     console.log('Files     : attach <task_id> <file> sets the card cover | comment-attach <comment_id> <file>');
     console.log('Export    : export-markdown ["<board_id>"] [--scope board|list|task] [--format lists|single] [--list-id N|--task-id N] [--out file.md|dir/]');
     console.log('            filters like the GUI: --tags id,id --members id,id --milestones id,id --versions v1,v2 --due any|overdue|today --hide-hidden');
+    console.log('Workspaces: workspace-groups | create-workspace "name" [--group-id N | --group-alias X]');
+    console.log('            create-group "name" [--parent-id N | --parent-alias X]  (registry-level; no --workspace)');
     console.log('Workspace : --workspace <path> on any task action; otherwise ./taskitty.json "databasePath" (cwd); else the API active workspace');
     console.log('Board id  : omitted board ids default to ./taskitty.json "boardId" when that config selected the workspace; an explicit number always wins');
     console.log('Author    : add/comment attribute tasks/comments to ./taskitty.json "authorId" when that config selected the workspace (per-workspace member id)');

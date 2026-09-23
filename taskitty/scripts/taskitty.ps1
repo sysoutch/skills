@@ -24,6 +24,7 @@
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 member-task <task_id> <member_id> | unassign-member <task_id> <member_id>
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 board-member <board_id> <member_id> | unassign-board-member <board_id> <member_id>
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 project-config [directory] -Replace -BoardId N -BoardName "name" -AuthorId N -AuthorName "name"
+#   .\.agents\skills\taskitty\scripts\taskitty.ps1 workspace-groups | create-workspace "name" [-GroupId N | -GroupAlias X] | create-group "name" [-ParentId N | -ParentAlias X]
 # Workspace : -Workspace <path> on any task action targets that registered DB; the default is ./taskitty.json's "databasePath" in the cwd when present, else Taskitty's active workspace.
 # Board id  : 'board' without an explicit board_id defaults to ./taskitty.json's "boardId" - but only when that config file selected the workspace (no -Workspace override), since board ids are per-workspace.
 # Author    : add/comment attribute tasks/comments to ./taskitty.json's "authorId" under the same rule, since member ids are per-workspace.
@@ -84,7 +85,13 @@ param(
     [string]$Other = "",
     # Named-only (reflections): side effects mirroring the desktop Reflections panel.
     [switch]$BlogPost = $false,
-    [switch]$FollowUp = $false
+    [switch]$FollowUp = $false,
+    # Named-only (create-workspace): assign the new workspace to an existing group by id or alias.
+    [int]$GroupId = 0,
+    [string]$GroupAlias = "",
+    # Named-only (create-group): nest the new group under an existing parent folder by id or alias.
+    [int]$ParentId = 0,
+    [string]$ParentAlias = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -552,6 +559,47 @@ switch ($Action) {
         Write-Output "Deleted board id=$($result.id)"
     }
 
+    "workspace-groups" {
+        # Registry-level listing of the named workspace groups (folders) with their stable aliases
+        # and parents. Reads workspaces.json, not a database; -Workspace does not apply.
+        $result = Invoke-Taskitty -Method Post -Path "/v1/workspace-groups" -Body @{}
+        if (@($result).Count -eq 0) { Write-Output "(no workspace groups)" }
+        foreach ($g in @($result)) {
+            $parent = if ($null -ne $g.parent_id) { " [parent=$($g.parent_id)]" } else { "" }
+            Write-Output "$($g.id)  $($g.name) (alias=$($g.alias))$parent"
+        }
+    }
+
+    "create-workspace" {
+        # Creates + registers a new workflow database in Taskitty's data directory - the API
+        # equivalent of the desktop "New workspace" action. Registry-level; -Workspace does not apply.
+        if (-not $Arg1) {
+            Write-Error 'Usage: taskitty create-workspace "name" [-GroupId N | -GroupAlias X]'
+            exit 1
+        }
+        $body = @{ name = Resolve-Payload $Arg1 }
+        if ($GroupId -gt 0) { $body['group_id'] = [int]$GroupId }
+        if ($GroupAlias) { $body['group_alias'] = $GroupAlias }
+        $result = Invoke-Taskitty -Method Post -Path "/v1/workspaces/create" -Body $body
+        $groupText = if ($null -ne $result.group_id) { " in group $($result.group_id)" } else { "" }
+        Write-Output "Created workspace $($result.name) at $($result.path) (alias=$($result.alias))$groupText"
+    }
+
+    "create-group" {
+        # Creates a named workspace group (folder) in the registry - the API equivalent of the
+        # desktop "New folder" action. Registry-level; -Workspace does not apply.
+        if (-not $Arg1) {
+            Write-Error 'Usage: taskitty create-group "name" [-ParentId N | -ParentAlias X]'
+            exit 1
+        }
+        $body = @{ name = Resolve-Payload $Arg1 }
+        if ($ParentId -gt 0) { $body['parent_id'] = [int]$ParentId }
+        if ($ParentAlias) { $body['parent_alias'] = $ParentAlias }
+        $result = Invoke-Taskitty -Method Post -Path "/v1/workspace-groups/create" -Body $body
+        $parentText = if ($null -ne $result.parent_id) { " under group $($result.parent_id)" } else { "" }
+        Write-Output "Created group id=$($result.id) `"$($result.name)`" (alias=$($result.alias))$parentText"
+    }
+
     "project-config" {
         # Writes taskitty.json into an existing project directory through the API. The workspace is
         # selected exactly like for other actions (-Workspace, then ./taskitty.json in the cwd, else
@@ -986,7 +1034,7 @@ switch ($Action) {
 
     default {
         Write-Error "Unknown action: $Action"
-        Write-Output "Available actions: configure, configure-url, which, token, start-api (start), stop-api (stop), status, health, boards, create-board, create-list, delete-list, delete-board, project-config, board, add, done, undone, doing, on_hold, off_doing, off_on_hold, rename, description, start-date, due-date, list-tasks, task, comment, edit_comment, delete_comment, attach, comment-attach, tags, create-tag, tag-task, untag-task, members, create-member, member-task, unassign-member, board-member, unassign-board-member, delete, export-markdown"
+        Write-Output "Available actions: configure, configure-url, which, token, start-api (start), stop-api (stop), status, health, boards, create-board, create-list, delete-list, delete-board, workspace-groups, create-workspace, create-group, project-config, board, add, done, undone, doing, on_hold, off_doing, off_on_hold, rename, description, start-date, due-date, list-tasks, task, comment, edit_comment, delete_comment, attach, comment-attach, tags, create-tag, tag-task, untag-task, members, create-member, member-task, unassign-member, board-member, unassign-board-member, delete, export-markdown"
         exit 1
     }
 }

@@ -95,6 +95,20 @@ Native confirmation is required when creating or replacing the file.
 
 This filesystem flow is desktop-only.
 
+## Creating workspaces and groups
+
+CLI actions (registry-level; no --workspace):
+
+workspace-groups
+create-workspace "name" [--group-id N | --group-alias X]
+create-group "name" [--parent-id N | --parent-alias X]
+
+`create-workspace` creates a new empty workflow database in Taskitty's data directory and registers it — the API equivalent of the desktop "New workspace" action. A pre-existing file with that name is only adopted when it really is a Taskitty database. The optional group assignment takes an existing group by id or stable alias.
+
+`create-group` creates a named folder (the desktop "New folder" action); sibling names are unique per parent and the stable alias is derived from the name at creation only. The optional parent is given by id or stable alias; omit both for top-level.
+
+The MCP server exposes the same operations as `taskitty_list_workspace_groups`, `taskitty_create_workspace` and `taskitty_create_workspace_group`.
+
 ## API URL
 
 The CLI resolves the API URL in this order:

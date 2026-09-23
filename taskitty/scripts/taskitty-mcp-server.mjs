@@ -30,6 +30,9 @@ const tools = [
   { name: "taskitty_add_comment", description: "Add a progress comment to a task.", inputSchema: object({ taskId: positiveInteger, message: { type: "string", minLength: 1, maxLength: 50000 }, workspace: optionalWorkspace }, ["taskId", "message"]) },
   { name: "taskitty_add_reflection", description: "Create Taskitty's structured finishing reflection. Call before setting a task done; every non-empty todos line creates a new task.", inputSchema: object({ taskId: positiveInteger, cause: { type: "string", maxLength: 50000 }, solution: { type: "string", maxLength: 50000 }, troubles: { type: "string", maxLength: 50000 }, findings: { type: "string", maxLength: 50000 }, todos: { type: "string", maxLength: 50000, description: "Optional; omit or pass an empty string for no follow-up tasks. Every non-empty line creates one new task." }, other: { type: "string", maxLength: 50000 }, createBlogPost: { type: "boolean" }, createFollowUpTask: { type: "boolean" }, workspace: optionalWorkspace }, ["taskId"]) },
   { name: "taskitty_export_board", description: "Export board state to Markdown. outputDirectory must be inside the project memory-bank/exports directory.", inputSchema: object({ boardId: positiveInteger, outputDirectory: { type: "string", minLength: 1 }, workspace: optionalWorkspace }, ["boardId", "outputDirectory"]) },
+  { name: "taskitty_list_workspace_groups", description: "List named workspace groups (folders) with id, stable alias and parent. Registry-level operation; no workspace argument applies.", inputSchema: object({}) },
+  { name: "taskitty_create_workspace", description: "Create a new empty workflow database in Taskitty's data directory and register it (the desktop \"New workspace\" action). Optionally assign it to an existing group by groupId or groupAlias. Registry-level operation; no workspace argument applies.", inputSchema: object({ name: { type: "string", minLength: 1, maxLength: 500 }, groupId: positiveInteger, groupAlias: { type: "string", minLength: 1 } }, ["name"]) },
+  { name: "taskitty_create_workspace_group", description: "Create a named workspace group (folder) in the registry (the desktop \"New folder\" action). Optionally nest it under an existing parent by parentId or parentAlias. Registry-level operation; no workspace argument applies.", inputSchema: object({ name: { type: "string", minLength: 1, maxLength: 500 }, parentId: positiveInteger, parentAlias: { type: "string", minLength: 1 } }, ["name"]) },
 ];
 
 function requireText(value, label) { if (typeof value !== "string" || !value.trim()) throw new Error(`${label} is required.`); return value.trim(); }
@@ -91,6 +94,19 @@ async function call(name, args = {}) {
       return runCli("reflections", [positive(args.taskId, "taskId"), ...flags], args.workspace);
     }
     case "taskitty_export_board": return runCli("export-markdown", [positive(args.boardId, "boardId"), "--out", safeOutputPath(args.outputDirectory)], args.workspace);
+    case "taskitty_list_workspace_groups": return runCli("workspace-groups", []);
+    case "taskitty_create_workspace": {
+      const cliArgs = [requireText(args.name, "name")];
+      if (args.groupId !== undefined) cliArgs.push("--group-id", positive(args.groupId, "groupId"));
+      if (args.groupAlias !== undefined) cliArgs.push("--group-alias", requireText(args.groupAlias, "groupAlias"));
+      return runCli("create-workspace", cliArgs);
+    }
+    case "taskitty_create_workspace_group": {
+      const cliArgs = [requireText(args.name, "name")];
+      if (args.parentId !== undefined) cliArgs.push("--parent-id", positive(args.parentId, "parentId"));
+      if (args.parentAlias !== undefined) cliArgs.push("--parent-alias", requireText(args.parentAlias, "parentAlias"));
+      return runCli("create-group", cliArgs);
+    }
     default: throw new Error(`Unknown MCP tool: ${name}`);
   }
 }

@@ -119,6 +119,22 @@ delete-list <list_id>
 
 Deleting a list also deletes its tasks through the database foreign-key cascade.
 
+## Workspaces and groups
+
+Registry-level actions (they manage %APPDATA%\taskitty\workspaces.json; --workspace does not apply):
+
+workspace-groups
+create-workspace "name" [--group-id N | --group-alias X]
+create-group "name" [--parent-id N | --parent-alias X]
+
+`workspace-groups` lists every named group with its id, stable alias and parent folder.
+
+`create-workspace` creates a new empty workflow database in Taskitty's data directory and registers it (the desktop "New workspace" action). A pre-existing file with the same name is only adopted when it passes validation as a Taskitty database. The optional assignment takes an existing group by id or stable alias (`#tk:workspacegroup-<alias>` accepted); pass exactly one of the two flags.
+
+`create-group` creates a named folder (the desktop "New folder" action). Sibling names are unique per parent (case-insensitive), and the stable alias is derived from the name at creation only — renaming never changes it. The optional parent takes an existing group by id or stable alias; omit both for a top-level folder.
+
+PowerShell uses -GroupId / -GroupAlias and -ParentId / -ParentAlias instead of the --flags.
+
 ## Attachments
 
 attach <task_id> <file>

@@ -5,7 +5,7 @@ description: Use the Taskitty MCP server to inspect and update local Taskitty bo
 
 # Taskitty
 
-Use the configured `taskitty` MCP server first. It exposes safe, typed Taskitty operations through the bundled CLI; it does not expose the local API token or arbitrary shell commands.
+Use the configured `taskitty` MCP server first. It exposes safe, typed Taskitty operations through the bundled CLI; it does not expose the local API token or arbitrary shell commands. Workspace and workspace-group management (list/create) is included, so registry changes never need raw HTTP either.
 
 ## Workspace selection (always explicit)
 
