@@ -3,7 +3,8 @@
 # Usage examples:
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 add <list_id> "Task name"
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 done <task_id>
-#   .\.agents\skills\taskitty\scripts\taskitty.ps1 board [board_id]
+#   .\.agents\skills\taskitty\scripts\taskitty.ps1 move <task_id> <list_id>
+#   .\.agents\skills\taskitty\scripts\taskitty.ps1 board <board_id>
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 boards
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 token
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 start-api     (alias: start)
@@ -18,15 +19,15 @@
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 comment-attach <comment_id> <image-file>
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 export-markdown <board_id> [-Scope board|list|task] [-Format lists|single] [-ListId N|-TaskId N] [-Out file.md|dir/]
 #       (filters like the GUI: -Tags id,id -Members id,id -Milestones id,id -Versions v1,v2 -Due any|overdue|today -HideHidden)
-#   .\.agents\skills\taskitty\scripts\taskitty.ps1 tags ["<board_id>"] | create-tag ["<board_id>"] "name" [#rrggbb]
+#   .\.agents\skills\taskitty\scripts\taskitty.ps1 tags <board_id> | create-tag "<board_id>" "name" [#rrggbb]
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 tag-task <task_id> <tag_id> | untag-task <task_id> <tag_id>
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 members | create-member "name" [description]
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 member-task <task_id> <member_id> | unassign-member <task_id> <member_id>
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 board-member <board_id> <member_id> | unassign-board-member <board_id> <member_id>
-#   .\.agents\skills\taskitty\scripts\taskitty.ps1 project-config [directory] -Replace -BoardId N -BoardName "name" -AuthorId N -AuthorName "name"
+#   .\.agents\skills\taskitty\scripts\taskitty.ps1 project-config [directory] -Replace -AuthorId N -AuthorName "name"
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 workspace-groups | create-workspace "name" [-GroupId N | -GroupAlias X] | create-group "name" [-ParentId N | -ParentAlias X]
 # Workspace : -Workspace <path> on any task action targets that registered DB; the default is ./taskitty.json's "databasePath" in the cwd when present, else Taskitty's active workspace.
-# Board id  : 'board' without an explicit board_id defaults to ./taskitty.json's "boardId" - but only when that config file selected the workspace (no -Workspace override), since board ids are per-workspace.
+# Board ids : board/tags/create-tag/export-markdown require an explicit <board_id>; list them with 'boards' and pick the one that documents this project.
 # Author    : add/comment attribute tasks/comments to ./taskitty.json's "authorId" under the same rule, since member ids are per-workspace.
 #
 # Server executable resolution applies only to `start-api` (`which` / `configure`
@@ -53,9 +54,6 @@ param(
     [string]$Workspace = "",
     # Named-only (project-config): opt into replacing an existing taskitty.json in the target folder.
     [switch]$Replace = $false,
-    # Named-only (project-config): default documentation board recorded in the generated config.
-    [int]$BoardId = 0,
-    [string]$BoardName = "",
     # Named-only (project-config): default author recorded in the generated config.
     [int]$AuthorId = 0,
     [string]$AuthorName = "",
@@ -397,23 +395,6 @@ function Invoke-Taskitty {
 if ($Action -eq "start") { $Action = "start-api" }
 elseif ($Action -eq "stop") { $Action = "stop-api" }
 
-# Resolves the board id for tags/create-tag: explicit argument, else ./taskitty.json's
-# "boardId" (only when no -Workspace override selected the database), mirroring `board`.
-function Resolve-TagBoardId {
-    param([string]$Explicit)
-    if ($Explicit) { return $Explicit }
-    if (-not $Workspace) {
-        $file = Join-Path (Get-Location).Path "taskitty.json"
-        if (Test-Path $file) {
-            try {
-                $doc = Get-Content $file -Raw | ConvertFrom-Json
-                if ($doc.PSObject.Properties['boardId'] -and [string]$doc.boardId) { return [string]$doc.boardId }
-            } catch {}
-        }
-    }
-    return ""
-}
-
 # The project config's default author (./taskitty.json "authorId"), used to attribute tasks and
 # comments created by add/comment - only when that same config selected the workspace, since
 # member ids are per-workspace. Returns 0 when unset or not applicable.
@@ -608,28 +589,13 @@ switch ($Action) {
         $directory = if ($Arg1) { $Arg1 } else { (Get-Location).Path }
         $body = @{ directory = $directory }
         if ($Replace) { $body['replace'] = $true }
-        if ($BoardId -gt 0) { $body['board_id'] = [int]$BoardId }
-        if ($BoardName) { $body['board_name'] = $BoardName }
         $result = Invoke-Taskitty -Method Post -Path "/v1/project-config" -Body $body
         Write-Output "Project config saved: $($result.path)"
     }
 
     "board" {
         if (-not $Arg1) {
-            # Mirrors the launcher's rule: only inherit boardId when this project-local config selected the workspace.
-            if (-not $Workspace) {
-                $file = Join-Path (Get-Location).Path "taskitty.json"
-                if (Test-Path $file) {
-                    try {
-                        $doc = Get-Content $file -Raw | ConvertFrom-Json
-                        if ($doc.PSObject.Properties['boardId'] -and [string]$doc.boardId) { $Arg1 = [string]$doc.boardId }
-                    } catch {}
-                }
-            }
-        }
-        if (-not $Arg1) {
-            $why = if ($Workspace) { "the -Workspace override does not inherit a board id (board ids are per-workspace)" } else { 'no "boardId" in ./taskitty.json to default to' }
-            Write-Error "Usage: taskitty board <board_id> (no board_id given and $why)"
+            Write-Error 'Usage: taskitty board <board_id> - list them with boards'
             exit 1
         }
         $result = Invoke-Taskitty -Method Post -Path "/v1/boards/$Arg1" -Body @{}
@@ -651,6 +617,15 @@ switch ($Action) {
         if ($authorId -gt 0) { $body['author_id'] = $authorId }
         $result = Invoke-Taskitty -Method Post -Path "/v1/tasks" -Body $body
         Write-Output "Created task id=$($result.id)"
+    }
+
+    "move" {
+        if (-not $Arg1 -or -not $Arg2) {
+            Write-Error 'Usage: taskitty move <task_id> <list_id>'
+            exit 1
+        }
+        $result = Invoke-Taskitty -Method Post -Path "/v1/tasks/$Arg1/move" -Body @{ list_id = [int]$Arg2 }
+        Write-Output "Moved task $($result.id) to list $($result.listId)"
     }
 
     "done" {
@@ -932,31 +907,21 @@ switch ($Action) {
     }
 
     "tags" {
-        $boardId = Resolve-TagBoardId $Arg1
-        if (-not $boardId) {
-            Write-Error 'Usage: taskitty tags ["<board_id>"] (no board id given and no "boardId" in ./taskitty.json to default to)'
+        if (-not $Arg1) {
+            Write-Error 'Usage: taskitty tags <board_id>'
             exit 1
         }
-        $result = Invoke-Taskitty -Method Post -Path "/v1/boards/$boardId/tags" -Body @{}
+        $result = Invoke-Taskitty -Method Post -Path "/v1/boards/$Arg1/tags" -Body @{}
         foreach ($tag in @($result)) { Write-Output "$($tag.id)  $($tag.name)" }
     }
 
     "create-tag" {
-        # Numeric first argument = board id; otherwise the name-first form.
-        $explicit = ""; $offset = 0
-        if ($Arg1 -and $Arg1 -match '^\d+$') { $explicit = $Arg1; $offset = 1 }
-        $name = if ($offset -eq 0) { $Arg1 } else { $Arg2 }
-        if (-not $name) { Write-Error 'Usage: taskitty create-tag ["<board_id>"] "name" [color]'; exit 1 }
-        $boardId = Resolve-TagBoardId $explicit
-        if (-not $boardId) {
-            Write-Error 'Usage: taskitty create-tag ["<board_id>"] "name" [color] (no board id given and no "boardId" in ./taskitty.json to default to)'
-            exit 1
-        }
-        $body = @{ board_id = [int]$boardId; name = Resolve-Payload $name }
-        $color = if ($offset -eq 0) { $Arg2 } else { $Arg3 }
+        if (-not ($Arg1 -match '^\d+$') -or -not $Arg2) { Write-Error 'Usage: taskitty create-tag "<board_id>" "name" [color]'; exit 1 }
+        $body = @{ board_id = [int]$Arg1; name = Resolve-Payload $Arg2 }
+        $color = $Arg3
         if ($color) { $body['color'] = $color }
         $result = Invoke-Taskitty -Method Post -Path "/v1/tags" -Body $body
-        Write-Output "Created tag id=$($result.id) on board $boardId"
+        Write-Output "Created tag id=$($result.id) on board $Arg1"
     }
 
     "tag-task" {
@@ -1034,7 +999,7 @@ switch ($Action) {
 
     default {
         Write-Error "Unknown action: $Action"
-        Write-Output "Available actions: configure, configure-url, which, token, start-api (start), stop-api (stop), status, health, boards, create-board, create-list, delete-list, delete-board, workspace-groups, create-workspace, create-group, project-config, board, add, done, undone, doing, on_hold, off_doing, off_on_hold, rename, description, start-date, due-date, list-tasks, task, comment, edit_comment, delete_comment, attach, comment-attach, tags, create-tag, tag-task, untag-task, members, create-member, member-task, unassign-member, board-member, unassign-board-member, delete, export-markdown"
+        Write-Output "Available actions: configure, configure-url, which, token, start-api (start), stop-api (stop), status, health, boards, create-board, create-list, delete-list, delete-board, workspace-groups, create-workspace, create-group, project-config, board, add, move, done, undone, doing, on_hold, off_doing, off_on_hold, rename, description, start-date, due-date, list-tasks, task, comment, edit_comment, delete_comment, attach, comment-attach, tags, create-tag, tag-task, untag-task, members, create-member, member-task, unassign-member, board-member, unassign-board-member, delete, export-markdown"
         exit 1
     }
 }

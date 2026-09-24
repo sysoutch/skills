@@ -24,7 +24,7 @@
 // is the sole action that runs taskitty-api.
 //
 //   node <path>/.agents/skills/taskitty/scripts/taskitty-launcher.cjs start|stop|status|token
-//   node <path>/.agents/skills/taskitty/scripts/taskitty-launcher.cjs boards | board [board_id]
+//   node <path>/.agents/skills/taskitty/scripts/taskitty-launcher.cjs boards | board <board_id>
 //   node <path>/.agents/skills/taskitty/scripts/taskitty-launcher.cjs add <list_id> "Task name"
 //   node <path>/.agents/skills/taskitty/scripts/taskitty-launcher.cjs project-config [directory] [--replace]
 //   ... (run `help` for the full list)
@@ -33,9 +33,8 @@
 //   --workspace <path>          explicit override, accepted anywhere on the command line
 //   ./taskitty.json             project default: its "databasePath", read from the cwd
 // Without either, the API's globally persisted active workspace is used.
-// Board-scoped actions (board/tags/create-tag) also accept an omitted <board_id>, which
-// then defaults to that same config file's "boardId" - never across a --workspace override,
-// because board ids are per-workspace. An explicit numeric id always wins.
+// Board-scoped actions (board/tags/create-tag) require an explicit <board_id>:
+// list them with `boards` and pick the one that documents this project's work.
 
 'use strict';
 
@@ -393,23 +392,10 @@ function resolveWorkspace() {
   return null;
 }
 
-function configBoardId() {
-  // The project config's default documentation board, used as the <board_id> fallback by
-  // board/tags/create-tag. Only valid when that same ./taskitty.json selected the workspace:
-  // board ids are per-workspace, so an explicit --workspace (or the API active workspace)
-  // must never inherit another project's board id.
-  if (cliWorkspace) return null;
-  try {
-    const doc = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'taskitty.json'), 'utf8'));
-    const id = Number(doc && doc.boardId);
-    return Number.isInteger(id) && id > 0 ? id : null;
-  } catch { return null; }
-}
-
 function configAuthorId() {
   // The project config's default author (member id), used to attribute tasks and comments
-  // created by add/comment. Same per-workspace rule as boardId: member ids are local to the
-  // workspace database, so an explicit --workspace must never inherit another project's author.
+  // created by add/comment. Member ids are local to the workspace database, so an explicit
+  // --workspace must never inherit another project's author.
   if (cliWorkspace) return null;
   try {
     const doc = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'taskitty.json'), 'utf8'));
@@ -418,21 +404,11 @@ function configAuthorId() {
   } catch { return null; }
 }
 
-function resolveBoardId(explicit, usage) {
-  if (explicit != null && String(explicit).trim() !== '') {
-    const id = Number(String(explicit).trim());
-    if (!Number.isInteger(id)) fail(`${usage}: <board_id> must be a whole number`);
-    return id;
-  }
-  const fallback = configBoardId();
-  if (!fallback) {
-    const why = cliWorkspace
-      ? 'the --workspace override does not inherit a board id (board ids are per-workspace)'
-      : './taskitty.json has no "boardId" to default to';
-    fail(`Usage: taskitty ${usage} - no board_id given and ${why}`);
-  }
-  console.error(`taskitty: using boardId ${fallback} from taskitty.json (pass a number to override)`);
-  return fallback;
+function requireBoardId(explicit, usage) {
+  if (explicit == null || String(explicit).trim() === '') fail(`Usage: taskitty ${usage} - a board_id is required (list them with \`boards\`)`);
+  const id = Number(String(explicit).trim());
+  if (!Number.isInteger(id)) fail(`${usage}: <board_id> must be a whole number`);
+  return id;
 }
 
 async function api(method, p, body = null) {
@@ -556,20 +532,11 @@ async function cmdProjectConfig(args) {
   // selected exactly like for other actions (--workspace flag, then ./taskitty.json in the cwd,
   // else the API's active workspace); replacing an existing config needs an explicit opt-in here
   // and in the request body so a stray call never clobbers a project's declared database.
-  const usage = 'Usage: taskitty project-config [directory] [--replace] [--board-id <id>] [--board-name "name"] [--author-id <id>] [--author-name "name"]';
-  let directory, replace = false, boardId, boardName, authorId, authorName;
+  const usage = 'Usage: taskitty project-config [directory] [--replace] [--author-id <id>] [--author-name "name"]';
+  let directory, replace = false, authorId, authorName;
   for (let i = 0; i < args.length; i++) {
     const a = String(args[i]);
     if (a === '--replace') replace = true;
-    else if (a === '--board-id') {
-      const id = Number(String(args[++i]).trim());
-      if (!Number.isInteger(id) || id <= 0) fail(`${usage}: --board-id must be a positive whole number`);
-      boardId = id;
-    }
-    else if (a === '--board-name') {
-      if (args[i + 1] === undefined) fail(usage);
-      boardName = String(args[++i]);
-    }
     else if (a === '--author-id') {
       const id = Number(String(args[++i]).trim());
       if (!Number.isInteger(id) || id <= 0) fail(`${usage}: --author-id must be a positive whole number`);
@@ -585,8 +552,6 @@ async function cmdProjectConfig(args) {
   }
   const body = { directory: directory === undefined ? '.' : directory };
   if (replace) body.replace = true;
-  if (boardId !== undefined) body.board_id = boardId;
-  if (boardName !== undefined) body.board_name = boardName;
   if (authorId !== undefined) body.author_id = authorId;
   if (authorName !== undefined) body.author_name = authorName;
   const r = await api('POST', '/v1/project-config', body);
@@ -600,7 +565,7 @@ async function cmdDeleteBoard(args) {
 }
 
 async function cmdBoard(args) {
-  const boardId = resolveBoardId(args[0], 'board ["<board_id>"]');
+  const boardId = requireBoardId(args[0], 'board <board_id>');
   const r = await api('POST', `/v1/boards/${boardId}`, {});
   console.log(`Board: ${r.name} (id=${r.id})`);
   for (const l of r.lists || []) console.log(`  List: ${l.id}  ${l.name}`);
@@ -685,7 +650,7 @@ async function cmdDelete(args) {
 }
 
 async function cmdExportMarkdown(args) {
-  const usage = 'Usage: taskitty export-markdown ["<board_id>"] [--scope board|list|task] [--format lists|single] [--list-id N] [--task-id N] [--out file.md|dir/]\n' +
+  const usage = 'Usage: taskitty export-markdown <board_id> [--scope board|list|task] [--format lists|single] [--list-id N] [--task-id N] [--out file.md|dir/]\n' +
     '            filters (same semantics as the GUI): --tags id,id --members id,id --milestones id,id\n' +
     '            --versions v1,v2 --due any|overdue|today --hide-hidden\n' +
     '            board scope defaults to --format lists (one list-<id>.md per visible list); use --out dir/ to write them, or --format single for one combined file.';
@@ -721,7 +686,7 @@ async function cmdExportMarkdown(args) {
     else if (a === '--out' && args[i + 1] !== undefined) outPath = path.resolve(process.cwd(), args[++i]);
     else fail(`${usage}\nUnknown argument: ${a}`);
   }
-  const boardId = resolveBoardId(explicitBoard, 'export-markdown ["<board_id>"]');
+  const boardId = requireBoardId(explicitBoard, 'export-markdown <board_id>');
   body.board_id = boardId;
   if (Object.keys(filter).length > 0) body.filter = filter;
   const r = await api('POST', '/v1/export/markdown', body);
@@ -876,14 +841,9 @@ async function cmdCommentAttach(args) {
   const r = await api('POST', `/v1/comments/${args[0]}/attachments`, { name: path.basename(file), data_base64: data.toString('base64') });
   console.log(`Attached ${path.basename(file)} as attachment id=${r.attachment_id} on comment ${args[0]}`);
 }
-async function cmdTags(args) { const boardId = resolveBoardId(args[0], 'tags ["<board_id>"]'); for (const tag of await api('POST', `/v1/boards/${boardId}/tags`, {})) console.log(`${tag.id}  ${tag.name}`); }
-async function cmdCreateTag(args) { let explicit = null, offset = 0;
-  if (args[0] !== undefined && /^\d+$/.test(String(args[0]).trim())) { explicit = args[0]; offset = 1; } // numeric first arg = board id, otherwise name-first form
-  const name = args[offset];
-  if (!name) fail('Usage: taskitty create-tag ["<board_id>"] "name" [color] - the board defaults to ./taskitty.json "boardId"');
-  const boardId = resolveBoardId(explicit, 'create-tag ["<board_id>"] "name" [color]');
-  const r = await api('POST', '/v1/tags', { board_id:boardId, name:payloadArg(name), color:args[offset + 1] });
-  console.log(`Created tag id=${r.id} on board ${boardId}`); }
+async function cmdTags(args) { const boardId = requireBoardId(args[0], 'tags <board_id>'); for (const tag of await api('POST', `/v1/boards/${boardId}/tags`, {})) console.log(`${tag.id}  ${tag.name}`); }
+async function cmdCreateTag(args) { if (!args[1]) fail('Usage: taskitty create-tag "<board_id>" "name" [color]'); const boardId = requireBoardId(args[0], 'create-tag "<board_id>" "name" [color]'); const r = await api('POST', '/v1/tags', { board_id:boardId, name:payloadArg(args[1]), color:args[2] }); console.log(`Created tag id=${r.id} on board ${boardId}`); }
+async function cmdMove(args) { if (!args[0] || !args[1]) fail('Usage: taskitty move <task_id> <list_id>'); const r = await api('POST', `/v1/tasks/${args[0]}/move`, { list_id:Number(args[1]) }); console.log(`Moved task ${r.id} to list ${r.listId}`); }
 async function cmdTagTask(args) { if (!args[0] || !args[1]) fail('Usage: taskitty tag-task <task_id> <tag_id>'); await api('POST', `/v1/tasks/${args[0]}/tags`, {tag_id:Number(args[1])}); console.log(`Tagged task ${args[0]} with tag ${args[1]}`); }
 async function cmdUntagTask(args) { if (!args[0] || !args[1]) fail('Usage: taskitty untag-task <task_id> <tag_id>'); await api('DELETE', `/v1/tasks/${args[0]}/tags/${args[1]}`, {}); console.log(`Removed tag ${args[1]} from task ${args[0]}`); }
 async function cmdMembers() { for (const m of await api('POST', '/v1/members', {})) console.log(`${m.id}  ${m.name}${m.description ? ` - ${m.description}` : ''}`); }
@@ -918,6 +878,7 @@ switch (action) {
   case 'delete-board': run(() => cmdDeleteBoard(rest)); break;
   case 'board': run(() => cmdBoard(rest)); break;
   case 'add': run(() => cmdAdd(rest)); break;
+  case 'move': run(() => cmdMove(rest)); break;
   case 'done': case 'undone': case 'doing': case 'off_doing': case 'on_hold': case 'off_on_hold':
     run(() => cmdFlag(action, rest)); break;
   case 'rename': run(() => cmdRename(rest)); break;
@@ -949,13 +910,13 @@ switch (action) {
     console.log(`Taskitty API CLI - endpoint ${API_URL} (override with TASKITTY_API_URL)`);
     console.log('Lifecycle : configure <taskitty-api path> | configure-url <http://host:port> | which | start | stop | status | health | token');
     console.log('Tasks     : boards | create-board "name" [description] | create-list <board_id> "name" | delete-list <list_id> | delete-board <board_id>');
-    console.log('Project   : project-config [directory] [--replace] [--board-id N --board-name "name"] [--author-id N --author-name "name"] writes taskitty.json via the API');
-    console.log('            board ["<board_id>"] | tags ["<board_id>"] | create-tag ["<board_id>"] "name" [color]');
+    console.log('Project   : project-config [directory] [--replace] [--author-id N --author-name "name"] writes taskitty.json via the API');
+    console.log('            board <board_id> | tags <board_id> | create-tag "<board_id>" "name" [color]');
     console.log('            tag-task <task_id> <tag_id> | untag-task <task_id> <tag_id>');
     console.log('Members   : members | create-member "name" [description] | member-task <task_id> <member_id>');
     console.log('            unassign-member <task_id> <member_id>');
     console.log('Board mem : board-member <board_id> <member_id> | unassign-board-member <board_id> <member_id>');
-    console.log('Cards     : add <list_id> "name" | task <task_id> | list-tasks <list_id>');
+    console.log('Cards     : add <list_id> "name" | move <task_id> <list_id> (works across boards) | task <task_id> | list-tasks <list_id>');
     console.log('            done|undone|doing|off_doing|on_hold|off_on_hold <task_id>');
     console.log('            rename|description accept inline text or @file for quotes/newlines | delete <task_id>');
     console.log('Dates     : start-date|due-date <task_id> "<ISO-8601 datetime>" | clear  (e.g. "2026-09-07T00:00:00.000Z")');
@@ -964,12 +925,12 @@ switch (action) {
     console.log('Finishing : reflections <task_id> [--cause|--solution|--troubles|--findings|--todos|--other "text"|@file] [--blog] [--follow-up]');
     console.log('            structured finishing comment (Reflections sections); --blog saves a draft note, --follow-up creates the follow-up card');
     console.log('Files     : attach <task_id> <file> sets the card cover | comment-attach <comment_id> <file>');
-    console.log('Export    : export-markdown ["<board_id>"] [--scope board|list|task] [--format lists|single] [--list-id N|--task-id N] [--out file.md|dir/]');
+    console.log('Export    : export-markdown <board_id> [--scope board|list|task] [--format lists|single] [--list-id N|--task-id N] [--out file.md|dir/]');
     console.log('            filters like the GUI: --tags id,id --members id,id --milestones id,id --versions v1,v2 --due any|overdue|today --hide-hidden');
     console.log('Workspaces: workspace-groups | create-workspace "name" [--group-id N | --group-alias X]');
     console.log('            create-group "name" [--parent-id N | --parent-alias X]  (registry-level; no --workspace)');
     console.log('Workspace : --workspace <path> on any task action; otherwise ./taskitty.json "databasePath" (cwd); else the API active workspace');
-    console.log('Board id  : omitted board ids default to ./taskitty.json "boardId" when that config selected the workspace; an explicit number always wins');
+    console.log('Board ids : board/tags/create-tag/export-markdown require an explicit <board_id>; list them with `boards` and pick the one that documents this project');
     console.log('Author    : add/comment attribute tasks/comments to ./taskitty.json "authorId" when that config selected the workspace (per-workspace member id)');
     process.exit(action === 'help' || action === '--help' ? 0 : 1);
 }

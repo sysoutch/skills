@@ -23,12 +23,12 @@ If MCP is unavailable, use the bundled CLI from this skill directory. It reads `
 
 ```sh
 node .agents/skills/taskitty/scripts/taskitty-launcher.cjs health
-node .agents/skills/taskitty/scripts/taskitty-launcher.cjs board
+node .agents/skills/taskitty/scripts/taskitty-launcher.cjs boards
 ```
 
 ```powershell
 .\.agents\skills\taskitty\scripts\taskitty.ps1 health
-.\.agents\skills\taskitty\scripts\taskitty.ps1 board
+.\.agents\skills\taskitty\scripts\taskitty.ps1 boards
 ```
 
 See `references/cli.md` only when MCP is unavailable or a supported MCP operation is missing.

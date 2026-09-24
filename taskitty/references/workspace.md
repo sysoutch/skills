@@ -20,8 +20,6 @@ Example:
 
 {
   "databasePath": "C:\\path\\to\\project.sqlite",
-  "boardId": 3,
-  "boardName": "My Project",
   "authorId": 4,
   "authorName": "Agent"
 }
@@ -29,8 +27,6 @@ Example:
 Fields:
 
 - `databasePath` — registered workspace database
-- `boardId` — default documentation board
-- `boardName` — name corresponding to `boardId`
 - `authorId` — default author for created tasks/comments
 - `authorName` — name corresponding to `authorId`
 
@@ -43,23 +39,17 @@ IDs are scoped to a workspace.
 When the CLI runs from a project containing `taskitty.json`:
 
 - Task actions use `databasePath`.
-- `board` can use `boardId` when no board ID is supplied.
-- `tags` and `create-tag` can use the configured board.
 - `add` and `comment` can use the configured author.
 
 Explicit command-line values always take precedence.
 
-An explicit workspace override must not inherit board or author defaults from another project's configuration.
+An explicit workspace override must not inherit the author default from another project's configuration.
 
 ## Creating taskitty.json
 
 CLI:
 
 project-config [directory] [--replace]
-
-Optional board:
-
-project-config [directory] --board-id N --board-name "name"
 
 Optional author:
 
@@ -74,8 +64,6 @@ Replacing an existing `taskitty.json` requires `--replace`.
 PowerShell equivalents use:
 
 - `-Replace`
-- `-BoardId`
-- `-BoardName`
 - `-AuthorId`
 - `-AuthorName`
 - `-Workspace`
@@ -88,7 +76,6 @@ Workspaces → select workspace → Add existing database → select project fol
 
 The user can select:
 
-- the project's default board
 - an optional default author
 
 Native confirmation is required when creating or replacing the file.

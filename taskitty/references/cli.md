@@ -35,6 +35,7 @@ health
 ## Tasks
 
 add <list_id> "Task name"
+move <task_id> <list_id>
 rename <task_id> "New name"
 description <task_id> "<markdown>"
 delete <task_id>
@@ -144,17 +145,17 @@ comment-attach <comment_id> <file>
 
 ## Project configuration
 
-project-config [directory] [--replace] [--board-id N --board-name "name"] [--author-id N --author-name "name"]
+project-config [directory] [--replace] [--author-id N --author-name "name"]
 
 PowerShell uses named parameters such as:
 
-taskitty.ps1 project-config -Replace -BoardId 2 -BoardName "My Project"
+taskitty.ps1 project-config -Replace -AuthorId 4 -AuthorName "Agent"
 
 See `workspace.md` for configuration behavior.
 
 ## Markdown export
 
-export-markdown ["<board_id>"] [--scope board|list|task] [--format lists|single] [--list-id N] [--task-id N] [--out file.md|dir/]
+export-markdown <board_id> [--scope board|list|task] [--format lists|single] [--list-id N] [--task-id N] [--out file.md|dir/]
 
 PowerShell filters:
 

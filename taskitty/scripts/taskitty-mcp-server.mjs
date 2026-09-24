@@ -18,15 +18,16 @@ const instructions = "Use these MCP tools first for Taskitty work; they invoke t
 const tools = [
   { name: "taskitty_health", description: "Check whether the configured Taskitty local API is reachable through the bundled CLI.", inputSchema: object({}) },
   { name: "taskitty_list_boards", description: "List accessible Taskitty boards.", inputSchema: object({ workspace: optionalWorkspace }) },
-  { name: "taskitty_get_board", description: "Get a board and its lists. Omit boardId only when taskitty.json configures one.", inputSchema: object({ boardId: positiveInteger, workspace: optionalWorkspace }) },
+  { name: "taskitty_get_board", description: "Get a board and its lists.", inputSchema: object({ boardId: positiveInteger, workspace: optionalWorkspace }, ["boardId"]) },
   { name: "taskitty_list_tasks", description: "List tasks in one Taskitty list.", inputSchema: object({ listId: positiveInteger, workspace: optionalWorkspace }, ["listId"]) },
   { name: "taskitty_get_task", description: "Get a Taskitty task with its details and comments.", inputSchema: object({ taskId: positiveInteger, workspace: optionalWorkspace }, ["taskId"]) },
-  { name: "taskitty_list_tags", description: "List tags for a board. Omit boardId only when taskitty.json configures one.", inputSchema: object({ boardId: positiveInteger, workspace: optionalWorkspace }) },
+  { name: "taskitty_list_tags", description: "List tags for a board.", inputSchema: object({ boardId: positiveInteger, workspace: optionalWorkspace }, ["boardId"]) },
   { name: "taskitty_list_members", description: "List available Taskitty members.", inputSchema: object({ workspace: optionalWorkspace }) },
   { name: "taskitty_create_task", description: "Create a task in an existing list. Inspect the board first, then set metadata and status deliberately. The response returns the created task's id; never guess or assume what it will be — other tasks may have been added since you last looked.", inputSchema: object({ listId: positiveInteger, title: { type: "string", minLength: 1, maxLength: 500 }, description: { type: "string", maxLength: 50000 }, workspace: optionalWorkspace }, ["listId", "title"]) },
   { name: "taskitty_update_task", description: "Update a task title, description, start date, or due date. Use ISO-8601 UTC dates, or clear to remove a date.", inputSchema: object({ taskId: positiveInteger, title: { type: "string", minLength: 1, maxLength: 500 }, description: { type: "string", maxLength: 50000 }, startDate: { type: "string", minLength: 1 }, dueDate: { type: "string", minLength: 1 }, workspace: optionalWorkspace }, ["taskId"]) },
   { name: "taskitty_set_task_state", description: "Set one task state. Re-read the board afterwards because workflow routing can move the task.", inputSchema: object({ taskId: positiveInteger, state: { type: "string", enum: ["doing", "not_doing", "done", "not_done", "on_hold", "not_on_hold"] }, workspace: optionalWorkspace }, ["taskId", "state"]) },
   { name: "taskitty_set_task_tag", description: "Add or remove one existing tag from a task.", inputSchema: object({ taskId: positiveInteger, tagId: positiveInteger, present: { type: "boolean" }, workspace: optionalWorkspace }, ["taskId", "tagId", "present"]) },
+  { name: "taskitty_move_task", description: "Move a task to another list, possibly on another board; the card is appended at the end of the target list.", inputSchema: object({ taskId: positiveInteger, listId: positiveInteger, workspace: optionalWorkspace }, ["taskId", "listId"]) },
   { name: "taskitty_add_comment", description: "Add a progress comment to a task.", inputSchema: object({ taskId: positiveInteger, message: { type: "string", minLength: 1, maxLength: 50000 }, workspace: optionalWorkspace }, ["taskId", "message"]) },
   { name: "taskitty_add_reflection", description: "Create Taskitty's structured finishing reflection. Call before setting a task done; every non-empty todos line creates a new task.", inputSchema: object({ taskId: positiveInteger, cause: { type: "string", maxLength: 50000 }, solution: { type: "string", maxLength: 50000 }, troubles: { type: "string", maxLength: 50000 }, findings: { type: "string", maxLength: 50000 }, todos: { type: "string", maxLength: 50000, description: "Optional; omit or pass an empty string for no follow-up tasks. Every non-empty line creates one new task." }, other: { type: "string", maxLength: 50000 }, createBlogPost: { type: "boolean" }, createFollowUpTask: { type: "boolean" }, workspace: optionalWorkspace }, ["taskId"]) },
   { name: "taskitty_export_board", description: "Export board state to Markdown. outputDirectory must be inside the project memory-bank/exports directory.", inputSchema: object({ boardId: positiveInteger, outputDirectory: { type: "string", minLength: 1 }, workspace: optionalWorkspace }, ["boardId", "outputDirectory"]) },
@@ -60,10 +61,10 @@ async function call(name, args = {}) {
   switch (name) {
     case "taskitty_health": return runCli("health", [], args.workspace);
     case "taskitty_list_boards": return runCli("boards", [], args.workspace);
-    case "taskitty_get_board": return runCli("board", args.boardId === undefined ? [] : [positive(args.boardId, "boardId")], args.workspace);
+    case "taskitty_get_board": return runCli("board", [positive(args.boardId, "boardId")], args.workspace);
     case "taskitty_list_tasks": return runCli("list-tasks", [positive(args.listId, "listId")], args.workspace);
     case "taskitty_get_task": return runCli("task", [positive(args.taskId, "taskId")], args.workspace);
-    case "taskitty_list_tags": return runCli("tags", args.boardId === undefined ? [] : [positive(args.boardId, "boardId")], args.workspace);
+    case "taskitty_list_tags": return runCli("tags", [positive(args.boardId, "boardId")], args.workspace);
     case "taskitty_list_members": return runCli("members", [], args.workspace);
     case "taskitty_create_task": {
       const output = await runCli("add", [positive(args.listId, "listId"), requireText(args.title, "title")], args.workspace);
@@ -85,6 +86,7 @@ async function call(name, args = {}) {
       return runCli(action, [positive(args.taskId, "taskId")], args.workspace);
     }
     case "taskitty_set_task_tag": return runCli(args.present === true ? "tag-task" : "untag-task", [positive(args.taskId, "taskId"), positive(args.tagId, "tagId")], args.workspace);
+    case "taskitty_move_task": return runCli("move", [positive(args.taskId, "taskId"), positive(args.listId, "listId")], args.workspace);
     case "taskitty_add_comment": return runCli("comment", [positive(args.taskId, "taskId"), requireText(args.message, "message")], args.workspace);
     case "taskitty_add_reflection": {
       const flags = [];
