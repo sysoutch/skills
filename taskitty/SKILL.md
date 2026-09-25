@@ -15,6 +15,16 @@ Inspect the board and affected task before changing it. Keep title, description,
 
 Never use raw HTTP, browser automation, Playwright, destructive deletes, or a made-up command for Taskitty. Use only registered workspaces.
 
+## Human review (Under Review)
+
+Boards created from Taskitty's default list template include an **Under Review** list — the parking lane for work that needs a human decision. When you reach such a point, do not block waiting for instructions:
+
+1. Move the task to the board's `Under Review` list (`taskitty_move_task`; look up the list id by name with `get_board`). If the board has no such list yet, create it first (CLI fallback: `taskitty create-list <board_id> "Under Review"`).
+2. Add a comment stating exactly which decision is needed and what you tried or considered.
+3. Apply an appropriate tag (create one if the board lacks a fitting one) so the task stays findable.
+
+Leave the task in `Under Review` until a human moves it on; do not mark it done yourself.
+
 ## Setup and fallback
 
 Run [`scripts/install-taskitty-mcp.ps1`](scripts/install-taskitty-mcp.ps1) for Cline or [`scripts/install-taskitty-codex-mcp.ps1`](scripts/install-taskitty-codex-mcp.ps1) for Codex, then restart the host. The installers globally install a portable `taskitty-mcp` command, so host configuration contains no machine-specific skill path.
