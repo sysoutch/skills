@@ -15,6 +15,10 @@ Inspect the board and affected task before changing it. Keep title, description,
 
 Never use raw HTTP, browser automation, Playwright, destructive deletes, or a made-up command for Taskitty. Use only registered workspaces.
 
+## Session start (memory bank)
+
+Before working on Taskitty-tracked projects, read this project's exports under `memory-bank/exports/<board-id>/` and treat them as the current board snapshot; refresh with `taskitty_export_board` when stale. The MCP export removes stale files automatically; the CLI fallback needs `--clean`. For LLM runs that only need recent work, pass `maxAgeDays`/`limit` to keep the snapshot small. See `references/memory-bank.md` for layout and rules.
+
 ## Human review (Under Review)
 
 Boards created from Taskitty's default list template include an **Under Review** list — the parking lane for work that needs a human decision. When you reach such a point, do not block waiting for instructions:

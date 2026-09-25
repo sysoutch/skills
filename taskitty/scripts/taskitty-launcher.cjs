@@ -664,11 +664,14 @@ async function cmdExportMarkdown(args) {
   const usage = 'Usage: taskitty export-markdown <board_id> [--scope board|list|task] [--format lists|single] [--list-id N] [--task-id N] [--out file.md|dir/]\n' +
     '            filters (same semantics as the GUI): --tags id,id --members id,id --milestones id,id\n' +
     '            --versions v1,v2 --due any|overdue|today --hide-hidden\n' +
+    '            freshness/size for LLM runs: --max-age-days N (cards active within N days) --limit N (per list, most recently active)\n' +
+    '            --clean removes stale board-*.md/list-*.md/task-*.md files from the output dir before writing\n' +
     '            board scope defaults to --format lists (one list-<id>.md per visible list); use --out dir/ to write them, or --format single for one combined file.';
   let explicitBoard = null;
   const body = { scope: 'board', format: 'lists' };
   const filter = {};
   let outPath = null;
+  let cleanBeforeWrite = false;
   const ids = (v) => String(v).split(',').map((s) => Number(s.trim())).filter(Number.isInteger);
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
@@ -694,6 +697,15 @@ async function cmdExportMarkdown(args) {
       if (!['any', 'overdue', 'today'].includes(v)) fail(`${usage}: --due must be any, overdue or today`);
       filter.due = v;
     } else if (a === '--hide-hidden') filter.hide_hidden = true;
+    else if (a === '--max-age-days' && args[i + 1] !== undefined) {
+      const v = Number(args[++i]);
+      if (!Number.isInteger(v) || v < 1) fail(`${usage}: --max-age-days must be a positive integer`);
+      filter.max_age_days = v;
+    } else if (a === '--limit' && args[i + 1] !== undefined) {
+      const v = Number(args[++i]);
+      if (!Number.isInteger(v) || v < 1) fail(`${usage}: --limit must be a positive integer`);
+      filter.limit = v;
+    } else if (a === '--clean') cleanBeforeWrite = true;
     else if (a === '--out' && args[i + 1] !== undefined) outPath = path.resolve(process.cwd(), args[++i]);
     else fail(`${usage}\nUnknown argument: ${a}`);
   }
@@ -710,12 +722,21 @@ async function cmdExportMarkdown(args) {
   if (files.length > 1) {
     if (!outPath) fail(`${usage}\nmulti-file export needs --out <dir> to write the list files`);
     fs.mkdirSync(outPath, { recursive: true });
+    let removedStale = 0;
+    if (cleanBeforeWrite) {
+      for (const entry of fs.readdirSync(outPath)) {
+        const file = path.join(outPath, entry);
+        if (!/^(board|list|task)-\d+\.md$/i.test(entry) || !fs.statSync(file).isFile()) continue;
+        fs.rmSync(file);
+        removedStale += 1;
+      }
+    }
     for (const f of files) {
       const target = path.join(outPath, f.filename || 'export.md');
       fs.writeFileSync(target, normalize(f.markdown));
       console.log(`Wrote ${path.basename(target)} (${f.markdown.length} chars)`);
     }
-    console.log(`${files.length} list file(s) written to ${outPath}`);
+    console.log(`${files.length} list file(s) written to ${outPath}${removedStale ? ` (${removedStale} stale export file(s) removed)` : ''}`);
     return;
   }
 
@@ -942,7 +963,7 @@ switch (action) {
     console.log('Finishing : reflections <task_id> [--cause|--solution|--troubles|--findings|--todos|--other "text"|@file] [--blog] [--follow-up]');
     console.log('            structured finishing comment (Reflections sections); --blog saves a draft note, --follow-up creates the follow-up card');
     console.log('Files     : attach <task_id> <file> sets the card cover | comment-attach <comment_id> <file>');
-    console.log('Export    : export-markdown <board_id> [--scope board|list|task] [--format lists|single] [--list-id N|--task-id N] [--out file.md|dir/]');
+    console.log('Export    : export-markdown <board_id> [--scope board|list|task] [--format lists|single] [--list-id N|--task-id N] [--max-age-days N|--limit N|--clean] [--out file.md|dir/]');
     console.log('            filters like the GUI: --tags id,id --members id,id --milestones id,id --versions v1,v2 --due any|overdue|today --hide-hidden');
     console.log('Workspaces: workspace-groups | create-workspace "name" [--group-id N | --group-alias X]');
     console.log('            create-group "name" [--parent-id N | --parent-alias X]  (registry-level; no --workspace)');

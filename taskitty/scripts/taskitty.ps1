@@ -19,8 +19,8 @@
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 reflections <task_id> [-Cause "text"] [-Solution "text"] [-Troubles "text"] [-Findings "text"] [-Todos "text"] [-Other "text"] [-BlogPost] [-FollowUp]
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 attach <task_id> <image-file>
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 comment-attach <comment_id> <image-file>
-#   .\.agents\skills\taskitty\scripts\taskitty.ps1 export-markdown <board_id> [-Scope board|list|task] [-Format lists|single] [-ListId N|-TaskId N] [-Out file.md|dir/]
-#       (filters like the GUI: -Tags id,id -Members id,id -Milestones id,id -Versions v1,v2 -Due any|overdue|today -HideHidden)
+#   .\.agents\skills\taskitty\scripts\taskitty.ps1 export-markdown <board_id> [-Scope board|list|task] [-Format lists|single] [-ListId N|-TaskId N] [-MaxAgeDays N] [-Limit N] [-Clean] [-Out file.md|dir/]
+#       (filters like the GUI: -Tags id,id -Members id,id -Milestones id,id -Versions v1,v2 -Due any|overdue|today -HideHidden; LLM-run extras: -MaxAgeDays N -Limit N -Clean)
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 tags <board_id> | create-tag "<board_id>" "name" [#rrggbb]
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 tag-task <task_id> <tag_id> | untag-task <task_id> <tag_id>
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 members | create-member "name" [description]
@@ -78,6 +78,11 @@ param(
     [ValidateSet("any", "overdue", "today")]
     [string]$Due = "any",
     [switch]$HideHidden = $false,
+    # Named-only (export-markdown): freshness/size limits for LLM-friendly exports; 0 = off.
+    [int]$MaxAgeDays = 0,
+    [int]$Limit = 0,
+    # Named-only (export-markdown): remove stale export files from the output dir before writing.
+    [switch]$Clean = $false,
     # Named-only (reflections): structured finishing comment sections; empty = section skipped.
     [string]$Cause = "",
     [string]$Solution = "",
@@ -728,7 +733,7 @@ switch ($Action) {
 
     "export-markdown" {
         if (-not $Arg1) {
-            Write-Error 'Usage: taskitty.ps1 export-markdown <board_id> [-Scope board|list|task] [-ListId N] [-TaskId N] [-Out file.md] [-Tags id,id] [-Members id,id] [-Milestones id,id] [-Versions v1,v2] [-Due any|overdue|today] [-HideHidden]'
+            Write-Error 'Usage: taskitty.ps1 export-markdown <board_id> [-Scope board|list|task] [-ListId N] [-TaskId N] [-Out file.md] [-Tags id,id] [-Members id,id] [-Milestones id,id] [-Versions v1,v2] [-Due any|overdue|today] [-HideHidden] [-MaxAgeDays N] [-Limit N] [-Clean]'
             exit 1
         }
         $body = @{ board_id = [int]$Arg1; scope = $Scope; format = $Format }
@@ -742,6 +747,8 @@ switch ($Action) {
         if ($Versions) { $filter.versions = @($Versions -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }) }
         if ($Due -ne 'any') { $filter.due = $Due }
         if ($HideHidden) { $filter.hide_hidden = $true }
+        if ($MaxAgeDays -gt 0) { $filter.max_age_days = [int]$MaxAgeDays }
+        if ($Limit -gt 0) { $filter.limit = [int]$Limit }
         if ($filter.Count -gt 0) { $body.filter = $filter }
         $result = Invoke-Taskitty -Method Post -Path "/v1/export/markdown" -Body $body
         # The API returns { files: [{ filename, markdown }] } — one entry per file.
@@ -753,6 +760,9 @@ switch ($Action) {
             if (-not $Out) { Write-Error "multi-file export needs -Out <dir> to write the list files"; exit 1 }
             $dir = Join-Path (Get-Location).Path $Out
             New-Item -ItemType Directory -Force -Path $dir | Out-Null
+            if ($Clean) {
+                Get-ChildItem -Path $dir -File | Where-Object { $_.Name -match '^(board|list|task)-\d+\.md$' } | ForEach-Object { Remove-Item $_.FullName; Write-Output "Removed stale export $($_.Name)" }
+            }
             foreach ($f in $files) {
                 $target = Join-Path $dir ([string]$f.filename)
                 Set-Content -Path $target -Value ([string]$f.markdown) -NoNewline -Encoding utf8

@@ -157,7 +157,7 @@ See `workspace.md` for configuration behavior.
 
 ## Markdown export
 
-export-markdown <board_id> [--scope board|list|task] [--format lists|single] [--list-id N] [--task-id N] [--out file.md|dir/]
+export-markdown <board_id> [--scope board|list|task] [--format lists|single] [--list-id N] [--task-id N] [--max-age-days N] [--limit N] [--clean] [--out file.md|dir/]
 
 PowerShell filters:
 
@@ -167,6 +167,9 @@ PowerShell filters:
 -Versions v1,v2
 -Due any|overdue|today
 -HideHidden
+-MaxAgeDays N
+-Limit N
+-Clean
 
 `board` is the default scope.
 
@@ -180,6 +183,15 @@ PowerShell filters:
 - `single` — one combined file for the whole board (or the single list/task file).
 
 Without `--out`, a single-file export is written to stdout; a multi-file export requires `--out <dir>`.
+
+Freshness and size limits (for LLM/API runs):
+
+- `--max-age-days N` keeps only cards whose last activity is within N days. Last activity is the card's latest comment/edit timestamp (`last_activity_datetime`), falling back to its edited or added date when it has no comments yet.
+- `--limit N` caps each list to its N most recently active cards, listed newest first; omitted matches are noted in the list index and their task files are not generated. Freshness is applied before the limit.
+
+Stale export cleanup:
+
+- `--clean` removes existing `board-*.md`, `list-*.md`, and `task-*.md` files from the output directory before writing, so a refresh never leaves behind task files that no longer match (for example after adding `--max-age-days` or `--limit`). Use it for every fresh LLM run; `delete-markdown <dir>` does the same sweep without exporting.
 
 ## API lifecycle
 

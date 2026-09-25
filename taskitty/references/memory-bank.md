@@ -28,7 +28,9 @@ Never put board/list/task exports directly in `memory-bank/exports/`.
 
 Refresh with (per-list files, the default):
 
-<t> export-markdown <board_id> --out memory-bank/exports/<board-id>/
+<t> export-markdown <board_id> --out memory-bank/exports/<board-id>/ --clean
+
+Always pass `--clean` when refreshing so stale task files from a previous run are removed first; without it, cards that no longer match keep their old `task-<id>.md` files and can mislead the session. The MCP tool `taskitty_export_board` does this automatically (pass `clean: false` to opt out).
 
 This writes a `board-<id>.md` list index, one `list-<id>.md` task index per
 visible list, and one full-detail `task-<id>.md` per matching task into that
@@ -76,12 +78,19 @@ The export command supports filters matching the GUI:
 --Versions v1,v2
 --Due any|overdue|today
 --HideHidden
+--MaxAgeDays N
+--Limit N
+--Clean
 
 Empty selections leave that filter disabled.
 
 Tags, members, and milestones use any-match behavior.
 
 `--HideHidden` excludes hidden lists and cards.
+
+`--MaxAgeDays N` keeps only cards whose last activity (latest comment/edit timestamp, falling back to edited or added date) is within N days. `--Limit N` then caps each list to its N most recently active cards, newest first; omitted matches are noted in the list index and get no task file. Use both for LLM runs that need a small, current context instead of the whole board.
+
+`--Clean` removes existing `board-*.md`, `list-*.md`, and `task-*.md` files from the output directory before writing so stale exports never survive a refresh.
 
 ## Hand-written memory-bank files
 
