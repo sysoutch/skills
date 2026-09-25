@@ -35,7 +35,7 @@ health
 ## Tasks
 
 add <list_id> "Task name"
-move <task_id> <list_id>
+move <task_id> <list_id> [--target-workspace <path>]
 rename <task_id> "New name"
 description <task_id> "<markdown>"
 delete <task_id>
@@ -114,9 +114,11 @@ unassign-board-member <board_id> <member_id>
 
 create-board "Project board" "Optional description"
 delete-board <board_id>
+move-board <board_id> --target-workspace <path>
 
 create-list <board_id> "Backlog"
 delete-list <list_id>
+move-list <list_id> <board_id> [--target-workspace <path>]
 
 Deleting a list also deletes its tasks through the database foreign-key cascade.
 
@@ -207,6 +209,24 @@ PowerShell:
 -Workspace <registered database path>
 
 Explicit workspace selection takes precedence over `taskitty.json`.
+
+## Cross-workspace moves
+
+`move`, `move-list`, and `move-board` accept a target workspace (a registered database path):
+
+move <task_id> <list_id> --target-workspace <path>
+move-list <list_id> <board_id> --target-workspace <path>
+move-board <board_id> --target-workspace <path>
+
+PowerShell uses -TargetWorkspace.
+
+With a target workspace, the item is copied into that registered workspace first and then removed from the source:
+
+- A task travels with its comments, checklists/todos, attachments, tags and members; it gets a new id in the destination.
+- A list travels with every card as a full task (same related rows); `board_id` refers to a board in the *destination* workspace.
+- A board travels with its lists, tags, members, cards and workflow rules; rule target lists are remapped onto the copied lists and a rule whose target did not travel is disabled.
+
+Members and comment authors are remapped by name across workspaces; tags match case-insensitively against the destination board. Without a target workspace, `move` and `move-list` stay inside the resolved workspace (desktop semantics). `move-board` requires a target workspace — same-workspace board moves are not supported by the API.
 
 ## Workflow routing
 

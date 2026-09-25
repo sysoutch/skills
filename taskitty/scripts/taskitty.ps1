@@ -3,7 +3,9 @@
 # Usage examples:
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 add <list_id> "Task name"
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 done <task_id>
-#   .\.agents\skills\taskitty\scripts\taskitty.ps1 move <task_id> <list_id>
+#   .\.agents\skills\taskitty\scripts\taskitty.ps1 move <task_id> <list_id> [-TargetWorkspace <path>]
+#   .\.agents\skills\taskitty\scripts\taskitty.ps1 move-list <list_id> <board_id> [-TargetWorkspace <path>]
+#   .\.agents\skills\taskitty\scripts\taskitty.ps1 move-board <board_id> -TargetWorkspace <path>
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 board <board_id>
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 boards
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 token
@@ -26,7 +28,7 @@
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 board-member <board_id> <member_id> | unassign-board-member <board_id> <member_id>
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 project-config [directory] -Replace -AuthorId N -AuthorName "name"
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 workspace-groups | create-workspace "name" [-GroupId N | -GroupAlias X] | create-group "name" [-ParentId N | -ParentAlias X]
-# Workspace : -Workspace <path> on any task action targets that registered DB; the default is ./taskitty.json's "databasePath" in the cwd when present, else Taskitty's active workspace.
+# Workspace : -Workspace <path> on any task action targets that registered DB; the default is ./taskitty.json's "databasePath" in the cwd when present, else Taskitty's active workspace. move/move-list/move-board also accept -TargetWorkspace <path>: source = -Workspace/config, target = the flag (cross-workspace moves).
 # Board ids : board/tags/create-tag/export-markdown require an explicit <board_id>; list them with 'boards' and pick the one that documents this project.
 # Author    : add/comment attribute tasks/comments to ./taskitty.json's "authorId" under the same rule, since member ids are per-workspace.
 #
@@ -52,6 +54,8 @@ param(
     [string]$Arg3,
     # Named-only: targets a specific registered workspace database for task actions.
     [string]$Workspace = "",
+    # Named-only (move/move-list/move-board): destination workspace for cross-workspace moves; the source is -Workspace or the project config.
+    [string]$TargetWorkspace = "",
     # Named-only (project-config): opt into replacing an existing taskitty.json in the target folder.
     [switch]$Replace = $false,
     # Named-only (project-config): default author recorded in the generated config.
@@ -621,11 +625,33 @@ switch ($Action) {
 
     "move" {
         if (-not $Arg1 -or -not $Arg2) {
-            Write-Error 'Usage: taskitty move <task_id> <list_id>'
+            Write-Error 'Usage: taskitty move <task_id> <list_id> [-TargetWorkspace <path>]'
             exit 1
         }
-        $result = Invoke-Taskitty -Method Post -Path "/v1/tasks/$Arg1/move" -Body @{ list_id = [int]$Arg2 }
-        Write-Output "Moved task $($result.id) to list $($result.listId)"
+        $body = @{ list_id = [int]$Arg2 }
+        if ($TargetWorkspace) { $body['target_workspace'] = $TargetWorkspace }
+        $result = Invoke-Taskitty -Method Post -Path "/v1/tasks/$Arg1/move" -Body $body
+        if ($TargetWorkspace) { Write-Output "Moved task $($result.id) to list $($result.listId) in workspace $TargetWorkspace" } else { Write-Output "Moved task $($result.id) to list $($result.listId)" }
+    }
+
+    "move-list" {
+        if (-not $Arg1 -or -not $Arg2) {
+            Write-Error 'Usage: taskitty move-list <list_id> <board_id> [-TargetWorkspace <path>]'
+            exit 1
+        }
+        $body = @{ board_id = [int]$Arg2 }
+        if ($TargetWorkspace) { $body['target_workspace'] = $TargetWorkspace }
+        $result = Invoke-Taskitty -Method Post -Path "/v1/lists/$Arg1/move" -Body $body
+        if ($TargetWorkspace) { Write-Output "Moved list $($result.id) to board $($result.boardId) in workspace $TargetWorkspace" } else { Write-Output "Moved list $($result.id) to board $($result.boardId)" }
+    }
+
+    "move-board" {
+        if (-not $Arg1 -or -not $TargetWorkspace) {
+            Write-Error 'Usage: taskitty move-board <board_id> -TargetWorkspace <path>'
+            exit 1
+        }
+        $result = Invoke-Taskitty -Method Post -Path "/v1/boards/$Arg1/move" -Body @{ target_workspace = $TargetWorkspace }
+        Write-Output "Moved board $($result.id) to workspace $TargetWorkspace"
     }
 
     "done" {
@@ -999,7 +1025,7 @@ switch ($Action) {
 
     default {
         Write-Error "Unknown action: $Action"
-        Write-Output "Available actions: configure, configure-url, which, token, start-api (start), stop-api (stop), status, health, boards, create-board, create-list, delete-list, delete-board, workspace-groups, create-workspace, create-group, project-config, board, add, move, done, undone, doing, on_hold, off_doing, off_on_hold, rename, description, start-date, due-date, list-tasks, task, comment, edit_comment, delete_comment, attach, comment-attach, tags, create-tag, tag-task, untag-task, members, create-member, member-task, unassign-member, board-member, unassign-board-member, delete, export-markdown"
+        Write-Output "Available actions: configure, configure-url, which, token, start-api (start), stop-api (stop), status, health, boards, create-board, create-list, delete-list, delete-board, workspace-groups, create-workspace, create-group, project-config, board, add, move, move-list, move-board, done, undone, doing, on_hold, off_doing, off_on_hold, rename, description, start-date, due-date, list-tasks, task, comment, edit_comment, delete_comment, attach, comment-attach, tags, create-tag, tag-task, untag-task, members, create-member, member-task, unassign-member, board-member, unassign-board-member, delete, export-markdown"
         exit 1
     }
 }

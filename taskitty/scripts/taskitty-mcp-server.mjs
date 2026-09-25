@@ -14,6 +14,7 @@ if (!existsSync(configuredCli)) throw new Error(`Taskitty CLI was not found: ${c
 const object = (properties, required = []) => ({ type: "object", properties, required, additionalProperties: false });
 const positiveInteger = { type: "integer", minimum: 1 };
 const optionalWorkspace = { type: "string", minLength: 1, description: "Optional registered Taskitty database path. Omit to use taskitty.json or the active workspace." };
+const optionalTargetWorkspace = { type: "string", minLength: 1, description: "Optional registered Taskitty database path to move into (cross-workspace). The item is copied there and removed from the source; ids in this parameter's context refer to the destination workspace. Omit for same-workspace moves." };
 const instructions = "Use these MCP tools first for Taskitty work; they invoke the bundled CLI and never expose its API token. Inspect the board and affected task before changing it. Keep title, description, tags, members, start and due dates current. Use add_reflection before marking completed work done. Never guess or assume the id of a newly created board, list, task, tag, member, or comment — other items may have been added in the meantime; use only the id returned by the creation response, or discover it with a list/get call. Do not use raw HTTP, browser automation, Playwright, arbitrary commands, destructive CLI actions, or unregistered workspaces. Boards from the default list template include an \"Under Review\" list — park tasks that need a human decision there (move + explanatory comment + tag) instead of blocking or marking them done.";
 const tools = [
   { name: "taskitty_health", description: "Check whether the configured Taskitty local API is reachable through the bundled CLI.", inputSchema: object({}) },
@@ -27,7 +28,9 @@ const tools = [
   { name: "taskitty_update_task", description: "Update a task title, description, start date, or due date. Use ISO-8601 UTC dates, or clear to remove a date.", inputSchema: object({ taskId: positiveInteger, title: { type: "string", minLength: 1, maxLength: 500 }, description: { type: "string", maxLength: 50000 }, startDate: { type: "string", minLength: 1 }, dueDate: { type: "string", minLength: 1 }, workspace: optionalWorkspace }, ["taskId"]) },
   { name: "taskitty_set_task_state", description: "Set one task state. Re-read the board afterwards because workflow routing can move the task.", inputSchema: object({ taskId: positiveInteger, state: { type: "string", enum: ["doing", "not_doing", "done", "not_done", "on_hold", "not_on_hold"] }, workspace: optionalWorkspace }, ["taskId", "state"]) },
   { name: "taskitty_set_task_tag", description: "Add or remove one existing tag from a task.", inputSchema: object({ taskId: positiveInteger, tagId: positiveInteger, present: { type: "boolean" }, workspace: optionalWorkspace }, ["taskId", "tagId", "present"]) },
-  { name: "taskitty_move_task", description: "Move a task to another list, possibly on another board; the card is appended at the end of the target list.", inputSchema: object({ taskId: positiveInteger, listId: positiveInteger, workspace: optionalWorkspace }, ["taskId", "listId"]) },
+  { name: "taskitty_move_task", description: "Move a task to another list; the card is appended at the end of the target list. Without targetWorkspace both lists live in the same workspace (possibly on different boards). With targetWorkspace the task — comments, checklists, attachments, tags and members included — is copied into that registered workspace and removed from the source; listId then refers to a list in the destination workspace.", inputSchema: object({ taskId: positiveInteger, listId: positiveInteger, targetWorkspace: optionalTargetWorkspace, workspace: optionalWorkspace }, ["taskId", "listId"]) },
+  { name: "taskitty_move_list", description: "Move a list with all of its cards to another board in the same workspace. With targetWorkspace the whole list is copied into that registered workspace's board and removed from the source; boardId then refers to a board in the destination workspace.", inputSchema: object({ listId: positiveInteger, boardId: positiveInteger, targetWorkspace: optionalTargetWorkspace, workspace: optionalWorkspace }, ["listId", "boardId"]) },
+  { name: "taskitty_move_board", description: "Move an entire board — lists, tags, members, cards and workflow rules included — into another registered workspace. Cross-workspace only; the source board is removed afterwards.", inputSchema: object({ boardId: positiveInteger, targetWorkspace: { type: "string", minLength: 1 }, workspace: optionalWorkspace }, ["boardId", "targetWorkspace"]) },
   { name: "taskitty_add_comment", description: "Add a progress comment to a task.", inputSchema: object({ taskId: positiveInteger, message: { type: "string", minLength: 1, maxLength: 50000 }, workspace: optionalWorkspace }, ["taskId", "message"]) },
   { name: "taskitty_add_reflection", description: "Create Taskitty's structured finishing reflection. Call before setting a task done; every non-empty todos line creates a new task.", inputSchema: object({ taskId: positiveInteger, cause: { type: "string", maxLength: 50000 }, solution: { type: "string", maxLength: 50000 }, troubles: { type: "string", maxLength: 50000 }, findings: { type: "string", maxLength: 50000 }, todos: { type: "string", maxLength: 50000, description: "Optional; omit or pass an empty string for no follow-up tasks. Every non-empty line creates one new task." }, other: { type: "string", maxLength: 50000 }, createBlogPost: { type: "boolean" }, createFollowUpTask: { type: "boolean" }, workspace: optionalWorkspace }, ["taskId"]) },
   { name: "taskitty_export_board", description: "Export board state to Markdown. outputDirectory must be inside the project memory-bank/exports directory.", inputSchema: object({ boardId: positiveInteger, outputDirectory: { type: "string", minLength: 1 }, workspace: optionalWorkspace }, ["boardId", "outputDirectory"]) },
@@ -86,7 +89,20 @@ async function call(name, args = {}) {
       return runCli(action, [positive(args.taskId, "taskId")], args.workspace);
     }
     case "taskitty_set_task_tag": return runCli(args.present === true ? "tag-task" : "untag-task", [positive(args.taskId, "taskId"), positive(args.tagId, "tagId")], args.workspace);
-    case "taskitty_move_task": return runCli("move", [positive(args.taskId, "taskId"), positive(args.listId, "listId")], args.workspace);
+    case "taskitty_move_task": {
+      const cliArgs = [positive(args.taskId, "taskId"), positive(args.listId, "listId")];
+      if (args.targetWorkspace !== undefined) cliArgs.push("--target-workspace", requireText(args.targetWorkspace, "targetWorkspace"));
+      return runCli("move", cliArgs, args.workspace);
+    }
+    case "taskitty_move_list": {
+      const cliArgs = [positive(args.listId, "listId"), positive(args.boardId, "boardId")];
+      if (args.targetWorkspace !== undefined) cliArgs.push("--target-workspace", requireText(args.targetWorkspace, "targetWorkspace"));
+      return runCli("move-list", cliArgs, args.workspace);
+    }
+    case "taskitty_move_board": {
+      const cliArgs = [positive(args.boardId, "boardId"), "--target-workspace", requireText(args.targetWorkspace, "targetWorkspace")];
+      return runCli("move-board", cliArgs, args.workspace);
+    }
     case "taskitty_add_comment": return runCli("comment", [positive(args.taskId, "taskId"), requireText(args.message, "message")], args.workspace);
     case "taskitty_add_reflection": {
       const flags = [];

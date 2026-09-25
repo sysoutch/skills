@@ -359,12 +359,16 @@ function readToken() {
 }
 
 let cliWorkspace = null; // set from --workspace at dispatch time
+let cliTargetWorkspace = null; // set from --target-workspace (move/move-list/move-board)
 
 function extractWorkspaceFlag(argv) {
   // Accepts `--workspace <path>` or `--workspace=<path>` anywhere in argv and
   // strips it so command-specific argument validation sees only real args.
+  // Also accepts `--target-workspace <path>` for cross-workspace moves, where
+  // --workspace (or the project config) selects the SOURCE database.
   const args = [];
   let workspace = null;
+  let targetWorkspace = null;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--workspace') {
       if (!argv[i + 1]) fail('missing path after --workspace');
@@ -373,11 +377,18 @@ function extractWorkspaceFlag(argv) {
       const value = argv[i].slice('--workspace='.length);
       if (!value) fail('missing path for --workspace=');
       workspace = value;
+    } else if (argv[i] === '--target-workspace') {
+      if (!argv[i + 1]) fail('missing path after --target-workspace');
+      targetWorkspace = argv[++i];
+    } else if (argv[i].startsWith('--target-workspace=')) {
+      const value = argv[i].slice('--target-workspace='.length);
+      if (!value) fail('missing path for --target-workspace=');
+      targetWorkspace = value;
     } else {
       args.push(argv[i]);
     }
   }
-  return { args, workspace };
+  return { args, workspace, targetWorkspace };
 }
 
 function resolveWorkspace() {
@@ -843,7 +854,9 @@ async function cmdCommentAttach(args) {
 }
 async function cmdTags(args) { const boardId = requireBoardId(args[0], 'tags <board_id>'); for (const tag of await api('POST', `/v1/boards/${boardId}/tags`, {})) console.log(`${tag.id}  ${tag.name}`); }
 async function cmdCreateTag(args) { if (!args[1]) fail('Usage: taskitty create-tag "<board_id>" "name" [color]'); const boardId = requireBoardId(args[0], 'create-tag "<board_id>" "name" [color]'); const r = await api('POST', '/v1/tags', { board_id:boardId, name:payloadArg(args[1]), color:args[2] }); console.log(`Created tag id=${r.id} on board ${boardId}`); }
-async function cmdMove(args) { if (!args[0] || !args[1]) fail('Usage: taskitty move <task_id> <list_id>'); const r = await api('POST', `/v1/tasks/${args[0]}/move`, { list_id:Number(args[1]) }); console.log(`Moved task ${r.id} to list ${r.listId}`); }
+async function cmdMove(args) { if (!args[0] || !args[1]) fail('Usage: taskitty move <task_id> <list_id> [--target-workspace <path>]'); const body = { list_id:Number(args[1]) }; if (cliTargetWorkspace) body.target_workspace = cliTargetWorkspace; const r = await api('POST', `/v1/tasks/${args[0]}/move`, body); console.log(cliTargetWorkspace ? `Moved task ${r.id} to list ${r.listId} in workspace ${cliTargetWorkspace}` : `Moved task ${r.id} to list ${r.listId}`); }
+async function cmdMoveList(args) { if (!args[0] || !args[1]) fail('Usage: taskitty move-list <list_id> <board_id> [--target-workspace <path>]'); const body = { board_id:Number(args[1]) }; if (cliTargetWorkspace) body.target_workspace = cliTargetWorkspace; const r = await api('POST', `/v1/lists/${args[0]}/move`, body); console.log(cliTargetWorkspace ? `Moved list ${r.id} to board ${r.boardId} in workspace ${cliTargetWorkspace}` : `Moved list ${r.id} to board ${r.boardId}`); }
+async function cmdMoveBoard(args) { if (!args[0]) fail('Usage: taskitty move-board <board_id> --target-workspace <path>'); if (!cliTargetWorkspace) fail('move-board requires --target-workspace <path> (cross-workspace only; same-workspace board moves are not supported by the API)'); const r = await api('POST', `/v1/boards/${args[0]}/move`, { target_workspace: cliTargetWorkspace }); console.log(`Moved board ${r.id} to workspace ${cliTargetWorkspace}`); }
 async function cmdTagTask(args) { if (!args[0] || !args[1]) fail('Usage: taskitty tag-task <task_id> <tag_id>'); await api('POST', `/v1/tasks/${args[0]}/tags`, {tag_id:Number(args[1])}); console.log(`Tagged task ${args[0]} with tag ${args[1]}`); }
 async function cmdUntagTask(args) { if (!args[0] || !args[1]) fail('Usage: taskitty untag-task <task_id> <tag_id>'); await api('DELETE', `/v1/tasks/${args[0]}/tags/${args[1]}`, {}); console.log(`Removed tag ${args[1]} from task ${args[0]}`); }
 async function cmdMembers() { for (const m of await api('POST', '/v1/members', {})) console.log(`${m.id}  ${m.name}${m.description ? ` - ${m.description}` : ''}`); }
@@ -854,8 +867,9 @@ async function cmdBoardMember(args) { if (!args[0] || !args[1]) fail('Usage: tas
 async function cmdUnassignBoardMember(args) { if (!args[0] || !args[1]) fail('Usage: taskitty unassign-board-member <board_id> <member_id>'); await api('DELETE', `/v1/boards/${args[0]}/members/${args[1]}`, {}); console.log(`Unassigned member ${args[1]} from board ${args[0]}`); }
 
 const action = process.argv[2] || 'status';
-const { args: rest, workspace } = extractWorkspaceFlag(process.argv.slice(3));
+const { args: rest, workspace, targetWorkspace } = extractWorkspaceFlag(process.argv.slice(3));
 cliWorkspace = workspace;
+cliTargetWorkspace = targetWorkspace;
 const run = (fn) => fn().catch((e) => fail(e.message));
 
 switch (action) {
@@ -879,6 +893,8 @@ switch (action) {
   case 'board': run(() => cmdBoard(rest)); break;
   case 'add': run(() => cmdAdd(rest)); break;
   case 'move': run(() => cmdMove(rest)); break;
+  case 'move-list': run(() => cmdMoveList(rest)); break;
+  case 'move-board': run(() => cmdMoveBoard(rest)); break;
   case 'done': case 'undone': case 'doing': case 'off_doing': case 'on_hold': case 'off_on_hold':
     run(() => cmdFlag(action, rest)); break;
   case 'rename': run(() => cmdRename(rest)); break;
@@ -916,7 +932,8 @@ switch (action) {
     console.log('Members   : members | create-member "name" [description] | member-task <task_id> <member_id>');
     console.log('            unassign-member <task_id> <member_id>');
     console.log('Board mem : board-member <board_id> <member_id> | unassign-board-member <board_id> <member_id>');
-    console.log('Cards     : add <list_id> "name" | move <task_id> <list_id> (works across boards) | task <task_id> | list-tasks <list_id>');
+    console.log('Cards     : add <list_id> "name" | move <task_id> <list_id> [--target-workspace <path>] (across boards, or across workspaces with the flag) | task <task_id> | list-tasks <list_id>');
+    console.log('Moves     : move-list <list_id> <board_id> [--target-workspace <path>] | move-board <board_id> --target-workspace <path>');
     console.log('            done|undone|doing|off_doing|on_hold|off_on_hold <task_id>');
     console.log('            rename|description accept inline text or @file for quotes/newlines | delete <task_id>');
     console.log('Dates     : start-date|due-date <task_id> "<ISO-8601 datetime>" | clear  (e.g. "2026-09-07T00:00:00.000Z")');
@@ -930,6 +947,7 @@ switch (action) {
     console.log('Workspaces: workspace-groups | create-workspace "name" [--group-id N | --group-alias X]');
     console.log('            create-group "name" [--parent-id N | --parent-alias X]  (registry-level; no --workspace)');
     console.log('Workspace : --workspace <path> on any task action; otherwise ./taskitty.json "databasePath" (cwd); else the API active workspace');
+    console.log('            move/move-list/move-board also accept --target-workspace <path>: source = --workspace/config, target = the flag');
     console.log('Board ids : board/tags/create-tag/export-markdown require an explicit <board_id>; list them with `boards` and pick the one that documents this project');
     console.log('Author    : add/comment attribute tasks/comments to ./taskitty.json "authorId" when that config selected the workspace (per-workspace member id)');
     process.exit(action === 'help' || action === '--help' ? 0 : 1);
