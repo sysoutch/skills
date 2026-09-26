@@ -45,5 +45,40 @@ async function publish() {
     if (out?.status && out.status !== status) fail(`server saved ${out.status}, not requested ${status}`);
     console.log(`${status === 'draft' ? 'Draft uploaded' : 'Post published'}${out?.slug ? `: ${out.slug}` : ''}`)
 }
+// GET the posts endpoint and print one line per existing post. Accepts a bare
+// JSON array or an object wrapping it under "posts"/"data", mirroring the Blog
+// Posts studio parser so both clients stay equivalent (see SKILL.md).
+async function list() {
+    if (!user || !password) fail('set URAGE_BLOG_USERNAME and URAGE_BLOG_APP_PASSWORD (they are never persisted)');
+    let r;
+    try {
+        r = await fetch(base, {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+                Authorization: `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}`
+            }
+        })
+    } catch (e) {
+        fail(`API not reachable at ${base}: ${e.message}`)
+    }
+    const raw = await r.text();
+    let out;
+    try {
+        out = JSON.parse(raw)
+    } catch {}
+    if (!r.ok) fail(`GET failed: HTTP ${r.status} ${out?.error || out?.message || raw.slice(0, 500)}`);
+    const posts = Array.isArray(out) ? out : (Array.isArray(out?.posts) ? out.posts : Array.isArray(out?.data) ? out.data : null);
+    if (!posts) fail('unexpected response: expected a JSON array of posts (or { "posts": [...] } / { "data": [...] })');
+    if (posts.length === 0) { console.log(`No posts at ${base}`); return; }
+    for (const p of posts) {
+        const title = typeof p?.title === 'string' && p.title.trim() ? p.title : (typeof p?.slug === 'string' && p.slug ? p.slug : '(untitled)');
+        const status = typeof p?.status === 'string' && p.status ? ` [${p.status}]` : '';
+        const date = typeof p?.date === 'string' && p.date ? ` ${p.date.slice(0, 10)}` : '';
+        const slug = typeof p?.slug === 'string' && p.slug && p.slug !== title ? ` (${p.slug})` : '';
+        console.log(`${title}${status}${date}${slug}`);
+    }
+}
 if (action === 'publish') publish().catch(e => fail(e.message));
-else console.log('URage Blog API CLI\nSet URAGE_BLOG_USERNAME and URAGE_BLOG_APP_PASSWORD. Optional: URAGE_BLOG_API_URL.\nUsage: publish "title" "markdown" [public|draft|private] [image-url] [ISO-date]\nUse @file for title or markdown.');
+else if (action === 'list') list().catch(e => fail(e.message));
+else console.log('URage Blog API CLI\nSet URAGE_BLOG_USERNAME and URAGE_BLOG_APP_PASSWORD. Optional: URAGE_BLOG_API_URL.\nUsage:\n  publish "title" "markdown" [public|draft|private] [image-url] [ISO-date]\n  list\nUse @file for title or markdown.');

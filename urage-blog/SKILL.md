@@ -1,7 +1,7 @@
 # URage Blog Publishing
 
 Use this skill whenever work publishes a Blog Post from Taskitty to URageNet or
-another endpoint implementing the same post contract.
+another endpoint implementing the same post contract, or lists existing posts.
 
 ## One publishing contract
 
@@ -14,6 +14,10 @@ The Taskitty Blog Posts UI (`frontend/src/blog.rs`) and release client
 - Valid statuses: `public`, `draft`, `private`.
 - The response status must match the requested status; report a mismatch as an
   error rather than claiming publication succeeded.
+- `GET` on `URAGE_BLOG_API_URL` lists existing posts. Both clients parse the
+  body defensively — a bare JSON array or an object wrapping it under
+  `posts`/`data` — and show title, status, date (first 10 chars), and slug per
+  post; missing fields degrade to empty instead of failing the fetch.
 
 Do not change one client without changing or deliberately documenting the
 other. Keep field names compatible with URageNet Admin.
@@ -34,13 +38,19 @@ other. Keep field names compatible with URageNet Admin.
 $env:URAGE_BLOG_USERNAME = "your-user"
 $env:URAGE_BLOG_APP_PASSWORD = "your application password"
 npm run urage-blog:publish -- "Post title" @post.md draft
+npm run urage-blog:list
 ```
 
 `@file` is supported for title/content. Optional positional arguments after
-status are image URL and ISO publication date.
+status are image URL and ISO publication date. `list` GETs the configured
+endpoint and prints one line per existing post (title, status, date, slug).
 
 ## Verification
 
 Run `node --check .agents/skills/urage-blog/scripts/urage-blog-launcher.cjs` after changing
-the client. A real publish requires user-provided valid credentials and an
-authorized endpoint; do not treat a syntax check as a successful publication.
+the client. After changing the `list` parsing, run
+`node .agents/skills/urage-blog/scripts/mock-list-test.cjs` — it spins up a local HTTP
+stub and exercises every response shape (bare array, `{posts}`, `{data}`, empty list,
+401 error, missing credentials) against the real launcher. A real publish requires
+user-provided valid credentials and an authorized endpoint; do not treat a syntax check
+as a successful publication.
