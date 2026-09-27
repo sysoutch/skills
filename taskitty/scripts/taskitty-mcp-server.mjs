@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -9,6 +9,14 @@ const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const configuredCli = (process.env.TASKITTY_CLI || path.join(scriptDirectory, "taskitty-launcher.cjs")).trim();
 const projectDirectory = process.env.TASKITTY_PROJECT_DIR ? path.resolve(process.env.TASKITTY_PROJECT_DIR) : process.cwd();
 const defaultWorkspace = (process.env.TASKITTY_WORKSPACE || "").trim();
+const memoryBankConfigPath = path.join(scriptDirectory, "..", "resources", "config.json");
+const memoryBankDirectory = (() => {
+  try {
+    const configured = JSON.parse(readFileSync(memoryBankConfigPath, "utf8"))?.["memory-bank"]?.directory;
+    if (typeof configured === "string" && configured.trim() && !path.isAbsolute(configured)) return configured.trim();
+  } catch { /* The default keeps the MCP server usable if its optional config is absent or malformed. */ }
+  return "memory-bank";
+})();
 if (!existsSync(configuredCli)) throw new Error(`Taskitty CLI was not found: ${configuredCli}. Set TASKITTY_CLI to taskitty-launcher.cjs.`);
 
 const object = (properties, required = []) => ({ type: "object", properties, required, additionalProperties: false });
@@ -43,15 +51,37 @@ function requireText(value, label) { if (typeof value !== "string" || !value.tri
 function optionalText(value, label) { return value === undefined ? undefined : requireText(value, label); }
 function positive(value, label) { const result = Number(value); if (!Number.isInteger(result) || result <= 0) throw new Error(`${label} must be a positive integer.`); return String(result); }
 function workspaceArgs(value) { const workspace = optionalText(value, "workspace") || defaultWorkspace; return workspace ? ["--workspace", workspace] : []; }
-function safeOutputPath(value) {
-  const target = path.resolve(projectDirectory, requireText(value, "outputDirectory"));
-  const memoryRoot = path.resolve(projectDirectory, "memory-bank", "exports");
-  if (target !== memoryRoot && !target.startsWith(`${memoryRoot}${path.sep}`)) throw new Error("outputDirectory must be inside this project's memory-bank/exports directory.");
-  return target;
+function isInside(directory, parent) {
+  const relative = path.relative(parent, directory);
+  return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
 }
-function runCli(action, args, workspace) {
+function projectDirectoryForAbsolutePath(target) {
+  for (let candidate = target; ; candidate = path.dirname(candidate)) {
+    if (existsSync(path.join(candidate, "taskitty.json"))) return candidate;
+    const parent = path.dirname(candidate);
+    if (parent === candidate) return undefined;
+  }
+}
+function safeOutputPath(value) {
+  const requested = requireText(value, "outputDirectory");
+  const target = path.resolve(projectDirectory, requested);
+  const exportRootFor = (directory) => path.resolve(directory, memoryBankDirectory, "exports");
+  if (isInside(target, exportRootFor(projectDirectory))) return { outputDirectory: target, projectDirectory };
+
+  // A portable, globally installed MCP process is often started from the host
+  // application's folder. An absolute project path can still identify its own
+  // project without weakening the rule that exports stay in its memory bank.
+  if (path.isAbsolute(requested)) {
+    const outputProjectDirectory = projectDirectoryForAbsolutePath(target);
+    if (outputProjectDirectory && isInside(target, exportRootFor(outputProjectDirectory))) {
+      return { outputDirectory: target, projectDirectory: outputProjectDirectory };
+    }
+  }
+  throw new Error(`outputDirectory must be inside a project's ${memoryBankDirectory}/exports directory. Use an absolute path when the MCP host is not started in that project.`);
+}
+function runCli(action, args, workspace, cwd = projectDirectory) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [configuredCli, action, ...args, ...workspaceArgs(workspace)], { cwd: projectDirectory, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(process.execPath, [configuredCli, action, ...args, ...workspaceArgs(workspace)], { cwd, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = ""; let stderr = "";
     child.stdout.on("data", (chunk) => { stdout += chunk; });
     child.stderr.on("data", (chunk) => { stderr += chunk; });
@@ -112,11 +142,12 @@ async function call(name, args = {}) {
       return runCli("reflections", [positive(args.taskId, "taskId"), ...flags], args.workspace);
     }
     case "taskitty_export_board": {
-      const cliArgs = [positive(args.boardId, "boardId"), "--out", safeOutputPath(args.outputDirectory)];
+      const exportTarget = safeOutputPath(args.outputDirectory);
+      const cliArgs = [positive(args.boardId, "boardId"), "--out", exportTarget.outputDirectory];
       if (args.maxAgeDays !== undefined) cliArgs.push("--max-age-days", positive(args.maxAgeDays, "maxAgeDays"));
       if (args.limit !== undefined) cliArgs.push("--limit", positive(args.limit, "limit"));
       if (args.clean !== false) cliArgs.push("--clean");
-      return runCli("export-markdown", cliArgs, args.workspace);
+      return runCli("export-markdown", cliArgs, args.workspace, exportTarget.projectDirectory);
     }
     case "taskitty_list_workspace_groups": return runCli("workspace-groups", []);
     case "taskitty_create_workspace": {

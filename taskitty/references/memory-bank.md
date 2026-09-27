@@ -6,7 +6,9 @@ Projects should store Taskitty exports under:
 
 memory-bank/exports/<board-id>/
 
-but this can be override by the user in the `.agents/skills/taskitty/resources/config.json` with 
+The `memory-bank.directory` value in `.agents/skills/taskitty/resources/config.json`
+can change the `memory-bank` segment (it must be a relative directory inside
+the project). Exports always remain below that directory's `exports/` folder.
 
 Example:
 
@@ -18,6 +20,22 @@ memory-bank/
         └── task-44.md
 
 Never put board/list/task exports directly in `memory-bank/exports/`.
+
+## MCP paths from a global install
+
+The globally installed `taskitty-mcp` process can be launched from the host
+application's directory instead of the repository. In that case, call
+`taskitty_export_board` with an **absolute** path below the target project's
+`memory-bank/exports/` directory, for example:
+
+```text
+C:\\Files\\github\\taskitty-rust\\memory-bank\\exports\\7
+```
+
+The server finds that project's `taskitty.json` and runs the export from the
+project root. Relative paths work only when the MCP process was started in the
+project. The safety boundary is intentional: the MCP exporter cannot write to
+the repository root or arbitrary directories.
 
 ## Session startup
 
