@@ -129,6 +129,7 @@ Registry-level actions (they manage %APPDATA%\taskitty\workspaces.json; --worksp
 workspace-groups
 create-workspace "name" [--group-id N | --group-alias X]
 create-group "name" [--parent-id N | --parent-alias X]
+assign-group <path-or-alias> [--group-id N | --group-alias X] | --ungroup
 
 `workspace-groups` lists every named group with its id, stable alias and parent folder.
 
@@ -136,7 +137,9 @@ create-group "name" [--parent-id N | --parent-alias X]
 
 `create-group` creates a named folder (the desktop "New folder" action). Sibling names are unique per parent (case-insensitive), and the stable alias is derived from the name at creation only — renaming never changes it. The optional parent takes an existing group by id or stable alias; omit both for a top-level folder.
 
-PowerShell uses -GroupId / -GroupAlias and -ParentId / -ParentAlias instead of the --flags.
+`assign-group` moves a registered workspace into a named group, or out of one with `--ungroup` (the desktop "drag onto folder" action). The workspace is given by its registered path or stable alias (`#tk:workspace-<alias>` accepted); the target group by id or stable alias. Pass exactly one of `--group-id`, `--group-alias` or `--ungroup`.
+
+PowerShell uses -GroupId / -GroupAlias, -Ungroup and -ParentId / -ParentAlias instead of the --flags.
 
 ## Attachments
 

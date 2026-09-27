@@ -28,6 +28,7 @@
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 board-member <board_id> <member_id> | unassign-board-member <board_id> <member_id>
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 project-config [directory] -Replace -AuthorId N -AuthorName "name"
 #   .\.agents\skills\taskitty\scripts\taskitty.ps1 workspace-groups | create-workspace "name" [-GroupId N | -GroupAlias X] | create-group "name" [-ParentId N | -ParentAlias X]
+#   .\.agents\skills\taskitty\scripts\taskitty.ps1 assign-group <path-or-alias> [-GroupId N | -GroupAlias X | -Ungroup]  (registry-level; no -Workspace)
 # Workspace : -Workspace <path> on any task action targets that registered DB; the default is ./taskitty.json's "databasePath" in the cwd when present, else Taskitty's active workspace. move/move-list/move-board also accept -TargetWorkspace <path>: source = -Workspace/config, target = the flag (cross-workspace moves).
 # Board ids : board/tags/create-tag/export-markdown require an explicit <board_id>; list them with 'boards' and pick the one that documents this project.
 # Author    : add/comment attribute tasks/comments to ./taskitty.json's "authorId" under the same rule, since member ids are per-workspace.
@@ -93,9 +94,11 @@ param(
     # Named-only (reflections): side effects mirroring the desktop Reflections panel.
     [switch]$BlogPost = $false,
     [switch]$FollowUp = $false,
-    # Named-only (create-workspace): assign the new workspace to an existing group by id or alias.
+    # Named-only (create-workspace / assign-group): target an existing group by id or alias.
     [int]$GroupId = 0,
     [string]$GroupAlias = "",
+    # Named-only (assign-group): remove the workspace's group assignment instead of moving it.
+    [switch]$Ungroup = $false,
     # Named-only (create-group): nest the new group under an existing parent folder by id or alias.
     [int]$ParentId = 0,
     [string]$ParentAlias = ""
@@ -390,9 +393,9 @@ function Invoke-Taskitty {
     }
     $headers = @{ Authorization = "Bearer $(Get-Token)" }
     if ($null -ne $Body) {
-        # All endpoints take a JSON body (WorkspaceRequest base), so an empty @{} is sent too; the optional workspace field selects a registered database.
+        # All endpoints take a JSON body (WorkspaceRequest base), so an empty @{} is sent too; the optional workspace field selects a registered database. An explicit 'workspace' key in the body (registry-level actions like assign-group) always wins over the project-config default.
         $ws = Resolve-Workspace
-        if ($ws) { $Body['workspace'] = $ws }
+        if ($ws -and (-not $Body.Contains('workspace'))) { $Body['workspace'] = $ws }
         $json = $Body | ConvertTo-Json -Depth 10
         return Invoke-RestMethod -Uri "$BASE_URL$Path" -Method $Method -Headers $headers -ContentType "application/json" -Body ([System.Text.Encoding]::UTF8.GetBytes($json)) -UseBasicParsing
     } else {
@@ -588,6 +591,36 @@ switch ($Action) {
         $result = Invoke-Taskitty -Method Post -Path "/v1/workspace-groups/create" -Body $body
         $parentText = if ($null -ne $result.parent_id) { " under group $($result.parent_id)" } else { "" }
         Write-Output "Created group id=$($result.id) `"$($result.name)`" (alias=$($result.alias))$parentText"
+    }
+
+    "assign-group" {
+        # Moves a registered workspace into (or out of) a named group - the API equivalent of
+        # dragging a workspace onto a folder in the desktop Workspaces view. Registry-level;
+        # -Workspace does not apply. The workspace is its registered path or stable alias; pass
+        # exactly one of -GroupId / -GroupAlias / -Ungroup.
+        if (-not $Arg1) {
+            Write-Error 'Usage: taskitty assign-group <path-or-alias> [-GroupId N | -GroupAlias X | -Ungroup]'
+            exit 1
+        }
+        $targetCount = 0
+        if ($GroupId -gt 0) { $targetCount++ }
+        if ($GroupAlias) { $targetCount++ }
+        if ($Ungroup) { $targetCount++ }
+        if ($targetCount -ne 1) {
+            Write-Error 'Usage: taskitty assign-group <path-or-alias> [-GroupId N | -GroupAlias X | -Ungroup] (exactly one target)'
+            exit 1
+        }
+        $body = @{ workspace = $Arg1.Trim() }
+        if ($GroupId -gt 0) { $body['group_id'] = [int]$GroupId }
+        if ($GroupAlias) { $body['group_alias'] = $GroupAlias }
+        if ($Ungroup) { $body['ungroup'] = $true }
+        $result = Invoke-Taskitty -Method Post -Path "/v1/workspaces/assign-group" -Body $body
+        # The handler answers with camelCase keys: path, alias, groupId (null when ungrouped).
+        if ($null -ne $result.groupId) {
+            Write-Output "Assigned workspace $($result.path) (alias=$($result.alias)) to group $($result.groupId)"
+        } else {
+            Write-Output "Removed workspace $($result.path) (alias=$($result.alias)) from its group"
+        }
     }
 
     "project-config" {
@@ -1035,7 +1068,7 @@ switch ($Action) {
 
     default {
         Write-Error "Unknown action: $Action"
-        Write-Output "Available actions: configure, configure-url, which, token, start-api (start), stop-api (stop), status, health, boards, create-board, create-list, delete-list, delete-board, workspace-groups, create-workspace, create-group, project-config, board, add, move, move-list, move-board, done, undone, doing, on_hold, off_doing, off_on_hold, rename, description, start-date, due-date, list-tasks, task, comment, edit_comment, delete_comment, attach, comment-attach, tags, create-tag, tag-task, untag-task, members, create-member, member-task, unassign-member, board-member, unassign-board-member, delete, export-markdown"
+        Write-Output "Available actions: configure, configure-url, which, token, start-api (start), stop-api (stop), status, health, boards, create-board, create-list, delete-list, delete-board, workspace-groups, create-workspace, create-group, assign-group, project-config, board, add, move, move-list, move-board, done, undone, doing, on_hold, off_doing, off_on_hold, rename, description, start-date, due-date, list-tasks, task, comment, edit_comment, delete_comment, attach, comment-attach, tags, create-tag, tag-task, untag-task, members, create-member, member-task, unassign-member, board-member, unassign-board-member, delete, export-markdown"
         exit 1
     }
 }

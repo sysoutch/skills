@@ -429,7 +429,9 @@ async function api(method, p, body = null) {
   // resolution exclusively inside `start`.
   if (!(await portOpen())) fail(`API not reachable at ${API_URL}; start it on that endpoint before running task commands.`);
   const workspace = resolveWorkspace();
-  if (body && workspace) body = Object.assign({}, body, { workspace });
+  // An explicit body.workspace (registry-level actions like assign-group) always wins over the
+  // project-config default, which only fills in a missing field.
+  if (body && workspace && !('workspace' in body)) body = Object.assign({}, body, { workspace });
 
   let res;
   try {
@@ -536,6 +538,39 @@ async function cmdCreateGroup(args) {
   if (parentAlias !== null) body.parent_alias = parentAlias;
   const r = await api('POST', '/v1/workspace-groups/create', body);
   console.log(`Created group id=${r.id} "${r.name}" (alias=${r.alias})${r.parent_id != null ? ` under group ${r.parent_id}` : ''}`);
+}
+
+async function cmdAssignGroup(args) {
+  // Moves a registered workspace into (or out of) a named group - the API equivalent of dragging a
+  // workspace onto a folder in the desktop Workspaces view. Registry-level: --workspace does not
+  // apply here. The workspace is its registered path or stable alias; exactly one target is
+  // accepted: --group-id N, --group-alias X (both resolve an existing group) or --ungroup.
+  const usage = 'Usage: taskitty assign-group <path-or-alias> [--group-id N | --group-alias X] | --ungroup';
+  if (!args[0]) fail(usage);
+  let groupId = null, groupAlias = null, ungroup = false;
+  for (let i = 1; i < args.length; i++) {
+    const a = String(args[i]);
+    if (a === '--ungroup') ungroup = true;
+    else if (a === '--group-id') {
+      if (args[++i] === undefined) fail(`${usage}\nMissing id after --group-id`);
+      groupId = Number(String(args[i]).trim());
+      if (!Number.isInteger(groupId) || groupId <= 0) fail(`${usage}\n--group-id must be a whole number`);
+    } else if (a === '--group-alias') {
+      if (args[++i] === undefined) fail(`${usage}\nMissing alias after --group-alias`);
+      groupAlias = String(args[i]).trim();
+    } else fail(`${usage}\nUnknown flag: ${a}`);
+  }
+  const targets = [groupId !== null, groupAlias !== null, ungroup].filter(Boolean).length;
+  if (targets !== 1) fail(`${usage}\nPass exactly one of --group-id / --group-alias / --ungroup`);
+  const body = { workspace: String(args[0]).trim() };
+  if (groupId !== null) body.group_id = groupId;
+  if (groupAlias !== null) body.group_alias = groupAlias;
+  if (ungroup) body.ungroup = true;
+  const r = await api('POST', '/v1/workspaces/assign-group', body);
+  // The handler answers with camelCase keys: { path, alias, groupId } (null when ungrouped).
+  console.log(r.groupId != null
+    ? `Assigned workspace ${r.path} (alias=${r.alias}) to group ${r.groupId}`
+    : `Removed workspace ${r.path} (alias=${r.alias}) from its group`);
 }
 
 async function cmdProjectConfig(args) {
@@ -909,6 +944,7 @@ switch (action) {
   case 'workspace-groups': run(cmdWorkspaceGroups); break;
   case 'create-workspace': run(() => cmdCreateWorkspace(rest)); break;
   case 'create-group': run(() => cmdCreateGroup(rest)); break;
+  case 'assign-group': run(() => cmdAssignGroup(rest)); break;
   case 'project-config': run(() => cmdProjectConfig(rest)); break;
   case 'delete-board': run(() => cmdDeleteBoard(rest)); break;
   case 'board': run(() => cmdBoard(rest)); break;
@@ -967,6 +1003,7 @@ switch (action) {
     console.log('            filters like the GUI: --tags id,id --members id,id --milestones id,id --versions v1,v2 --due any|overdue|today --hide-hidden');
     console.log('Workspaces: workspace-groups | create-workspace "name" [--group-id N | --group-alias X]');
     console.log('            create-group "name" [--parent-id N | --parent-alias X]  (registry-level; no --workspace)');
+    console.log('            assign-group <path-or-alias> [--group-id N | --group-alias X] | --ungroup  (move a workspace into/out of a folder)');
     console.log('Workspace : --workspace <path> on any task action; otherwise ./taskitty.json "databasePath" (cwd); else the API active workspace');
     console.log('            move/move-list/move-board also accept --target-workspace <path>: source = --workspace/config, target = the flag');
     console.log('Board ids : board/tags/create-tag/export-markdown require an explicit <board_id>; list them with `boards` and pick the one that documents this project');

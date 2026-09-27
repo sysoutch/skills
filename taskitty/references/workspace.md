@@ -89,10 +89,13 @@ CLI actions (registry-level; no --workspace):
 workspace-groups
 create-workspace "name" [--group-id N | --group-alias X]
 create-group "name" [--parent-id N | --parent-alias X]
+assign-group <path-or-alias> [--group-id N | --group-alias X] | --ungroup
 
 `create-workspace` creates a new empty workflow database in Taskitty's data directory and registers it — the API equivalent of the desktop "New workspace" action. A pre-existing file with that name is only adopted when it really is a Taskitty database. The optional group assignment takes an existing group by id or stable alias.
 
 `create-group` creates a named folder (the desktop "New folder" action); sibling names are unique per parent and the stable alias is derived from the name at creation only. The optional parent is given by id or stable alias; omit both for top-level.
+
+`assign-group` moves an already-registered workspace into a named group, or out of one with `--ungroup` — the API equivalent of dragging a workspace onto (or off) a folder in the desktop Workspaces view. The workspace is its registered path or stable alias; the target group by id or stable alias. Exactly one of `--group-id`, `--group-alias` or `--ungroup` must be given.
 
 The MCP server exposes the same operations as `taskitty_list_workspace_groups`, `taskitty_create_workspace` and `taskitty_create_workspace_group`.
 
