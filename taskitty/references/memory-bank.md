@@ -29,7 +29,7 @@ application's directory instead of the repository. In that case, call
 `memory-bank/exports/` directory, for example:
 
 ```text
-C:\\Files\\github\\taskitty-rust\\memory-bank\\exports\\7
+C:\\...\\taskitty-rust\\memory-bank\\exports\\7
 ```
 
 The server finds that project's `taskitty.json` and runs the export from the
