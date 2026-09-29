@@ -1,6 +1,6 @@
-# C:\Files\github\taskitty-rust\run-taskitty-cline.ps1
-
-Set-Location "C:\Files\github\taskitty-rust"
+# Run from the Taskitty Rust repository regardless of where the suite is checked out.
+$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..\..")).Path
+Set-Location -LiteralPath $projectRoot
 
 cline `
   -P lmstudio `
