@@ -1,12 +1,20 @@
 # URage Blog Publishing
 
+## Skill location
+
+For users who have it installed, `%USERPROFILE%\.agents\skills\urage-blog` is the source of truth. Use that global folder for skill scripts and references to avoid ambiguity with a repository mirror. The checked-in `.agents\skills\urage-blog` copy is a compatibility mirror; use it only when the global skill is unavailable, and keep both copies synchronized when this skill changes.
+
+## Project context
+
+An absolute helper path does not change the process working directory. Invoke the global launcher from the target project root so `@file` title or Markdown arguments resolve there. To use files from another project, change location explicitly (for example, `Push-Location C:\Path\To\Project` before the command and `Pop-Location` afterward) or pass an absolute file path.
+
 Use this skill whenever work publishes a Blog Post from Taskitty to URageNet or
 another endpoint implementing the same post contract, or lists existing posts.
 
 ## One publishing contract
 
 The Taskitty Blog Posts UI (`frontend/src/blog.rs`) and release client
-(`.agents/skills/urage-blog/scripts/urage-blog-launcher.cjs`) must remain equivalent:
+(`%USERPROFILE%/.agents/skills/urage-blog/scripts/urage-blog-launcher.cjs`) must remain equivalent:
 
 - `POST` to `URAGE_BLOG_API_URL`.
 - HTTP Basic authentication with an application password.
@@ -47,9 +55,9 @@ endpoint and prints one line per existing post (title, status, date, slug).
 
 ## Verification
 
-Run `node --check .agents/skills/urage-blog/scripts/urage-blog-launcher.cjs` after changing
+Run `node --check "$env:USERPROFILE/.agents/skills/urage-blog/scripts/urage-blog-launcher.cjs"` after changing
 the client. After changing the `list` parsing, run
-`node .agents/skills/urage-blog/scripts/mock-list-test.cjs` — it spins up a local HTTP
+`node "$env:USERPROFILE/.agents/skills/urage-blog/scripts/mock-list-test.cjs"` — it spins up a local HTTP
 stub and exercises every response shape (bare array, `{posts}`, `{data}`, empty list,
 401 error, missing credentials) against the real launcher. A real publish requires
 user-provided valid credentials and an authorized endpoint; do not treat a syntax check

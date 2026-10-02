@@ -5,6 +5,14 @@ description: Use the Taskitty MCP server to inspect and update local Taskitty bo
 
 # Taskitty
 
+## Skill location
+
+For users who have it installed, `%USERPROFILE%\.agents\skills\taskitty` is the source of truth. Run its helpers and read its references from that global folder so host-relative and repository-relative skill paths cannot be confused. The checked-in `.agents\skills\taskitty` copy is a compatibility mirror for this repository; use it only when the global skill is unavailable, and keep both copies synchronized when this skill changes.
+
+## Project context
+
+An absolute helper path does not change the process working directory. Invoke the global helper while the shell is at the target project root: it reads that directory's `taskitty.json` and resolves relative payload, attachment, and export paths there. To target another project, change location explicitly (for example, `Push-Location C:\Path\To\Project` before the command and `Pop-Location` afterward); `--workspace` selects a database but does not change where relative files are read.
+
 Use the configured `taskitty` MCP server first. It exposes safe, typed Taskitty operations through the bundled CLI; it does not expose the local API token or arbitrary shell commands. Workspace and workspace-group management (list/create) is included, so registry changes never need raw HTTP either.
 
 ## Workspace selection (always explicit)
@@ -33,16 +41,16 @@ Leave the task in `Under Review` until a human moves it on; do not mark it done 
 
 Run [`scripts/install-taskitty-mcp.ps1`](scripts/install-taskitty-mcp.ps1) for Cline or [`scripts/install-taskitty-codex-mcp.ps1`](scripts/install-taskitty-codex-mcp.ps1) for Codex, then restart the host. The installers globally install a portable `taskitty-mcp` command, so host configuration contains no machine-specific skill path.
 
-If MCP is unavailable, use the bundled CLI from this skill directory. It reads `taskitty.json` in the current project when present; otherwise use an explicit registered workspace.
+If MCP is unavailable, use the global CLI helper. It reads `taskitty.json` in the current project when present; otherwise use an explicit registered workspace. If the global skill is unavailable, use the matching checked-in mirror.
 
 ```sh
-node .agents/skills/taskitty/scripts/taskitty-launcher.cjs health
-node .agents/skills/taskitty/scripts/taskitty-launcher.cjs boards
+node "$USERPROFILE/.agents/skills/taskitty/scripts/taskitty-launcher.cjs" health
+node "$USERPROFILE/.agents/skills/taskitty/scripts/taskitty-launcher.cjs" boards
 ```
 
 ```powershell
-.\.agents\skills\taskitty\scripts\taskitty.ps1 health
-.\.agents\skills\taskitty\scripts\taskitty.ps1 boards
+& "$env:USERPROFILE\.agents\skills\taskitty\scripts\taskitty.ps1" health
+& "$env:USERPROFILE\.agents\skills\taskitty\scripts\taskitty.ps1" boards
 ```
 
 See `references/cli.md` only when MCP is unavailable or a supported MCP operation is missing.
