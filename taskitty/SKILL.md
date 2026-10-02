@@ -21,6 +21,12 @@ The user can change the globally active workspace at any time from the Taskitty 
 
 Inspect the board and affected task before changing it. Keep title, description, tags, members, start date, and due date current. Add progress as comments. Before marking work done, save a structured reflection with accurate findings; non-empty reflection todos create follow-up tasks and leave a reference to the initial task with #tk:task:<id>. Re-read the board after a workflow state change because routing may move the task. Never guess or assume the id of a newly created board, list, task, tag, member, or comment — other items may have been added in the meantime; use only the `id=` value returned by the creation command, or re-list and match by name to find it.
 
+## Task lifecycle (required)
+
+When beginning implementation of an existing Taskitty task, immediately set its state to `doing` through `taskitty_set_task_state` and re-read it to confirm its routed list/state. Do this before making implementation changes, unless it is already `done`, `on_hold`, or explicitly awaiting review.
+
+When the requested work is implemented and verified to the appropriate boundary, add the factual progress comment and structured finishing reflection, then set the task state to `done` yourself. Do not wait for the user merely to move a completed task. Human attention is required only for a real unresolved decision, external authority, missing input, or failed verification that prevents a truthful completion claim. In those cases, use the **Under Review** workflow below instead of setting `done`.
+
 Never use raw HTTP, browser automation, Playwright, destructive deletes, or a made-up command for Taskitty. Use only registered workspaces.
 
 ## Session start (memory bank)
