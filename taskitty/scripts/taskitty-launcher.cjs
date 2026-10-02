@@ -26,6 +26,7 @@
 //   node <path>/.agents/skills/taskitty/scripts/taskitty-launcher.cjs start|stop|status|token
 //   node <path>/.agents/skills/taskitty/scripts/taskitty-launcher.cjs boards | board <board_id>
 //   node <path>/.agents/skills/taskitty/scripts/taskitty-launcher.cjs add <list_id> "Task name"
+//   node <path>/.agents/skills/taskitty/scripts/taskitty-launcher.cjs report-text <progress|changelog|roadmap> [filters]
 //   node <path>/.agents/skills/taskitty/scripts/taskitty-launcher.cjs project-config [directory] [--replace]
 //   ... (run `help` for the full list)
 //
@@ -272,6 +273,9 @@ function waitForPort(open, timeoutMs) {
     })();
   });
 }
+
+// Helper: parse comma-separated integer ids from CLI args.
+const ids = (v) => String(v).split(',').map((s) => Number(s.trim())).filter(Number.isInteger);
 
 async function cmdStart() {
   if (!LOCAL_ENDPOINT) {
@@ -781,6 +785,42 @@ async function cmdExportMarkdown(args) {
   else process.stdout.write(text);
 }
 
+async function cmdReportText(args) {
+  const usage = 'Usage: taskitty report-text <progress|changelog|roadmap> [filters]\n' +
+    '            --boards id,id --tags name,name --milestones id,id --versions v1,v2\n' +
+    '            --from-date YYYY-MM-DD [--to-date YYYY-MM-DD] (inclusive start, exclusive end)\n' +
+    '            --include-upcoming --exclude-hidden-cards --exclude-hidden-lists --prefer-done-message';
+  const kind = String(args[0] || '').toLowerCase();
+  if (!['progress', 'changelog', 'roadmap'].includes(kind)) fail(usage);
+  const body = { kind };
+  for (let i = 1; i < args.length; i++) {
+    const flag = args[i];
+    const value = () => {
+      if (args[i + 1] === undefined || args[i + 1].startsWith('--')) fail(`${usage}\nMissing value after ${flag}`);
+      return args[++i];
+    };
+    if (flag === '--boards' || flag === '--milestones') {
+      const values = value().split(',').map((part) => Number(part.trim()));
+      if (!values.length || values.some((id) => !Number.isInteger(id) || id <= 0)) fail(`${usage}\n${flag} needs positive integer ids`);
+      body[flag === '--boards' ? 'boards' : 'milestones'] = values;
+    } else if (flag === '--tags' || flag === '--versions') {
+      const values = value().split(',').map((part) => part.trim()).filter(Boolean);
+      if (!values.length) fail(`${usage}\n${flag} needs at least one value`);
+      body[flag === '--tags' ? 'tags' : 'versions'] = values;
+    } else if (flag === '--from-date') body.date_from = value();
+    else if (flag === '--to-date') body.date_to = value();
+    else if (flag === '--include-upcoming') body.include_upcoming = true;
+    else if (flag === '--exclude-hidden-cards') body.include_hidden_cards = false;
+    else if (flag === '--exclude-hidden-lists') body.include_hidden_lists = false;
+    else if (flag === '--prefer-done-message') body.prefer_done_message = true;
+    else fail(`${usage}\nUnknown argument: ${flag}`);
+  }
+  if (body.date_from && body.date_to && body.date_from >= body.date_to) fail(`${usage}\n--to-date must be later than --from-date`);
+  const response = await api('POST', '/v1/report/text', body);
+  if (typeof response.text !== 'string') fail('report endpoint returned no text');
+  process.stdout.write(response.text.endsWith('\n') ? response.text : `${response.text}\n`);
+}
+
 async function cmdDeleteMarkdown(args) {
   const usage = 'Usage: taskitty delete-markdown ["<board_id>"] [--out <path>]\n' +
     'Deletes all markdown export files for the specified board, or all boards if no board_id is given.\n' +
@@ -978,6 +1018,7 @@ switch (action) {
   case 'unassign-board-member': run(() => cmdUnassignBoardMember(rest)); break;
   case 'delete': run(() => cmdDelete(rest)); break;
   case 'export-markdown': run(() => cmdExportMarkdown(rest)); break;
+  case 'report-text': run(() => cmdReportText(rest)); break;
   case 'delete-markdown': run(() => cmdDeleteMarkdown(rest)); break;
   default:
     console.log(`Taskitty API CLI - endpoint ${API_URL} (override with TASKITTY_API_URL)`);
@@ -1001,6 +1042,7 @@ switch (action) {
     console.log('Files     : attach <task_id> <file> sets the card cover | comment-attach <comment_id> <file>');
     console.log('Export    : export-markdown <board_id> [--scope board|list|task] [--format lists|single] [--list-id N|--task-id N] [--max-age-days N|--limit N|--clean] [--out file.md|dir/]');
     console.log('            filters like the GUI: --tags id,id --members id,id --milestones id,id --versions v1,v2 --due any|overdue|today --hide-hidden');
+    console.log('Reports   : report-text <progress|changelog|roadmap> [--boards id,id] [--tags name,name] [--versions v1,v2] [--from-date YYYY-MM-DD] [--to-date YYYY-MM-DD]');
     console.log('Workspaces: workspace-groups | create-workspace "name" [--group-id N | --group-alias X]');
     console.log('            create-group "name" [--parent-id N | --parent-alias X]  (registry-level; no --workspace)');
     console.log('            assign-group <path-or-alias> [--group-id N | --group-alias X] | --ungroup  (move a workspace into/out of a folder)');

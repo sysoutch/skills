@@ -42,6 +42,7 @@ const tools = [
   { name: "taskitty_add_comment", description: "Add a progress comment to a task.", inputSchema: object({ taskId: positiveInteger, message: { type: "string", minLength: 1, maxLength: 50000 }, workspace: optionalWorkspace }, ["taskId", "message"]) },
   { name: "taskitty_add_reflection", description: "Create Taskitty's structured finishing reflection. Call before setting a task done; every non-empty todos line creates a new task.", inputSchema: object({ taskId: positiveInteger, cause: { type: "string", maxLength: 50000 }, solution: { type: "string", maxLength: 50000 }, troubles: { type: "string", maxLength: 50000 }, findings: { type: "string", maxLength: 50000 }, todos: { type: "string", maxLength: 50000, description: "Optional; omit or pass an empty string for no follow-up tasks. Every non-empty line creates one new task." }, other: { type: "string", maxLength: 50000 }, createBlogPost: { type: "boolean" }, createFollowUpTask: { type: "boolean" }, workspace: optionalWorkspace }, ["taskId"]) },
   { name: "taskitty_export_board", description: "Export board state to Markdown. outputDirectory must be inside the project memory-bank/exports directory. Stale export files (board-*.md, list-*.md, task-*.md) in that folder are removed before writing so LLM runs never read a mixed snapshot; pass clean=false to keep them. Optional maxAgeDays keeps only cards active within N days and limit caps each list to its most recently active cards.", inputSchema: object({ boardId: positiveInteger, outputDirectory: { type: "string", minLength: 1 }, maxAgeDays: { type: "integer", minimum: 1, description: "Optional; keep only cards whose last activity is within this many days." }, limit: { type: "integer", minimum: 1, description: "Optional; per list, keep at most this many of the most recently active cards." }, clean: { type: "boolean" }, workspace: optionalWorkspace }, ["boardId", "outputDirectory"]) },
+  { name: "taskitty_generate_report", description: "Generate Progress, Changelog, or Roadmap Markdown using the same workspace report model as the desktop Report tab. Dates include from_date and exclude to_date; omit boards to include all boards in the selected workspace.", inputSchema: object({ kind: { type: "string", enum: ["progress", "changelog", "roadmap"] }, boards: { type: "array", items: positiveInteger }, tags: { type: "array", items: { type: "string" } }, milestones: { type: "array", items: positiveInteger }, versions: { type: "array", items: { type: "string" } }, from_date: { type: "string", description: "Optional inclusive ISO date or timestamp." }, to_date: { type: "string", description: "Optional exclusive ISO date or timestamp." }, includeUpcoming: { type: "boolean" }, includeHiddenCards: { type: "boolean" }, includeHiddenLists: { type: "boolean" }, preferDoneMessage: { type: "boolean" }, workspace: optionalWorkspace }, ["kind"]) },
   { name: "taskitty_list_workspace_groups", description: "List named workspace groups (folders) with id, stable alias and parent. Registry-level operation; no workspace argument applies.", inputSchema: object({}) },
   { name: "taskitty_create_workspace", description: "Create a new empty workflow database in Taskitty's data directory and register it (the desktop \"New workspace\" action). Optionally assign it to an existing group by groupId or groupAlias. Registry-level operation; no workspace argument applies.", inputSchema: object({ name: { type: "string", minLength: 1, maxLength: 500 }, groupId: positiveInteger, groupAlias: { type: "string", minLength: 1 } }, ["name"]) },
   { name: "taskitty_create_workspace_group", description: "Create a named workspace group (folder) in the registry (the desktop \"New folder\" action). Optionally nest it under an existing parent by parentId or parentAlias. Registry-level operation; no workspace argument applies.", inputSchema: object({ name: { type: "string", minLength: 1, maxLength: 500 }, parentId: positiveInteger, parentAlias: { type: "string", minLength: 1 } }, ["name"]) },
@@ -149,6 +150,21 @@ async function call(name, args = {}) {
       if (args.clean !== false) cliArgs.push("--clean");
       return runCli("export-markdown", cliArgs, args.workspace, exportTarget.projectDirectory);
     }
+    case "taskitty_generate_report": {
+      const cliArgs = [requireText(args.kind, "kind")];
+      if (args.boards?.length) cliArgs.push("--boards", args.boards.map((id) => positive(id, "boards")).join(","));
+      if (args.tags?.length) cliArgs.push("--tags", args.tags.map((tag) => requireText(tag, "tags")).join(","));
+      if (args.milestones?.length) cliArgs.push("--milestones", args.milestones.map((id) => positive(id, "milestones")).join(","));
+      if (args.versions?.length) cliArgs.push("--versions", args.versions.map((version) => requireText(version, "versions")).join(","));
+      if (args.from_date !== undefined) cliArgs.push("--from-date", requireText(args.from_date, "from_date"));
+      if (args.to_date !== undefined) cliArgs.push("--to-date", requireText(args.to_date, "to_date"));
+      if (args.includeUpcoming === true) cliArgs.push("--include-upcoming");
+      if (args.includeHiddenCards === false) cliArgs.push("--exclude-hidden-cards");
+      if (args.includeHiddenLists === false) cliArgs.push("--exclude-hidden-lists");
+      if (args.preferDoneMessage === true) cliArgs.push("--prefer-done-message");
+      return runCli("report-text", cliArgs, args.workspace);
+    }
+
     case "taskitty_list_workspace_groups": return runCli("workspace-groups", []);
     case "taskitty_create_workspace": {
       const cliArgs = [requireText(args.name, "name")];
