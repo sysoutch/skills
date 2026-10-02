@@ -8,17 +8,19 @@ Never guess or assume the id of a newly created board, list, task, tag, member, 
 
 ## CLI entry points
 
+Use the canonical global Taskitty skill folder. Its scripts preserve the current working directory, so run them from the target project root when `taskitty.json` or relative payload files matter. The repository-local copy is only a fallback when the global skill is unavailable.
+
 Windows without Node:
 
-<folder>\taskitty.bat <action> [args]
+%USERPROFILE%\.agents\skills\taskitty\scripts\taskitty.bat <action> [args]
 
 PowerShell:
 
-<folder>\taskitty.ps1 <action> [args]
+& "$env:USERPROFILE\.agents\skills\taskitty\scripts\taskitty.ps1" <action> [args]
 
 Node 18+:
 
-node <folder>/taskitty-launcher.cjs <action> [args]
+node "$USERPROFILE/.agents/skills/taskitty/scripts/taskitty-launcher.cjs" <action> [args]
 
 Run `which` to inspect CLI/API resolution.
 

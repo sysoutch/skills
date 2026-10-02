@@ -6,7 +6,7 @@ Projects should store Taskitty exports under:
 
 memory-bank/exports/<board-id>/
 
-The `memory-bank.directory` value in `.agents/skills/taskitty/resources/config.json`
+The `memory-bank.directory` value in `%USERPROFILE%\.agents\skills\taskitty\resources\config.json`
 can change the `memory-bank` segment (it must be a relative directory inside
 the project). Exports always remain below that directory's `exports/` folder.
 
