@@ -215,7 +215,7 @@ token
 
 Only `start` launches the API executable. Other actions communicate with the configured API endpoint.
 
-## Workspace override
+## Workspace selection (CLI fallback)
 
 Task actions accept:
 
@@ -225,7 +225,16 @@ PowerShell:
 
 -Workspace <registered database path>
 
-Explicit workspace selection takes precedence over `taskitty.json`.
+The CLI can infer a workspace from `taskitty.json` in its current working
+directory, then fall back to Taskitty's active workspace. That compatibility
+behavior is **CLI-only**. The MCP requires `workspace` on every
+workspace-scoped operation, and the Taskitty skill requires the target
+project's `databasePath`; do not reproduce CLI fallback behavior in an MCP
+call.
+
+For CLI fallback use, pass the target project's registered database path
+explicitly whenever practical. Explicit workspace selection takes precedence
+over `taskitty.json`.
 
 ## Cross-workspace moves
 

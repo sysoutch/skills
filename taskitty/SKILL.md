@@ -5,6 +5,25 @@ description: Use the Taskitty MCP server to inspect and update local Taskitty bo
 
 # Taskitty
 
+## Combined default workflow
+
+Use the **skill and MCP together**, with distinct responsibilities:
+
+- The **skill** establishes the target project, reads its `taskitty.json` and
+  memory-bank export, chooses and tracks the work item, and applies the
+  lifecycle and truthful-verification rules below.
+- The **MCP** is the only interface for reading or changing Taskitty data. It
+  performs the typed, registered-workspace operations; it is not a substitute
+  for project selection, session context, or implementation judgment.
+
+Default sequence: find the target project's `taskitty.json`; read the current
+board export; use MCP with that config's `databasePath` on every
+workspace-scoped call; inspect the board/task; transition an implementation
+task to `doing`; implement and verify; add a factual progress comment and
+reflection; then either mark it `done` or use **Under Review** for a genuine
+human decision. Do not use the CLI merely because it is more convenient: it is
+only the MCP-unavailable fallback.
+
 ## Skill location
 
 For users who have it installed, `%USERPROFILE%\.agents\skills\taskitty` is the source of truth. Run its helpers and read its references from that global folder so host-relative and repository-relative skill paths cannot be confused. The checked-in `.agents\skills\taskitty` copy is a compatibility mirror for this repository; use it only when the global skill is unavailable, and keep both copies synchronized when this skill changes.
@@ -13,11 +32,29 @@ For users who have it installed, `%USERPROFILE%\.agents\skills\taskitty` is the 
 
 An absolute helper path does not change the process working directory. Invoke the global helper while the shell is at the target project root: it reads that directory's `taskitty.json` and resolves relative payload, attachment, and export paths there. To target another project, change location explicitly (for example, `Push-Location C:\Path\To\Project` before the command and `Pop-Location` afterward); `--workspace` selects a database but does not change where relative files are read.
 
-Use the configured `taskitty` MCP server first. It exposes safe, typed Taskitty operations through the bundled CLI; it does not expose the local API token or arbitrary shell commands. Workspace and workspace-group management (list/create) is included, so registry changes never need raw HTTP either.
+Use the configured `taskitty` MCP server for all Taskitty reads and writes. It
+exposes safe, typed operations through the bundled CLI; it does not expose the
+local API token or arbitrary shell commands. Workspace and workspace-group
+management (list/create) is included, so registry changes never need raw HTTP
+either.
 
 ## Workspace selection (always explicit)
 
-The user can change the globally active workspace at any time from the Taskitty GUI, so an MCP call without a `workspace` argument may silently hit the wrong database ("task not found", wrong board). Therefore: when `taskitty.json` exists in the project root, pass its `databasePath` as the explicit `workspace` argument on every taskitty MCP call (list_boards, get_board, list_tasks, get_task, create/update/comment/reflection/state/tag, export, ...). Omit it only when the user explicitly names a different workspace. The bundled CLI/launcher scripts already auto-select `taskitty.json`, so this rule applies to the MCP tools.
+The user can change the globally active workspace at any time from the Taskitty
+GUI, so an implicit workspace can silently hit the wrong database. Read the
+target project's `taskitty.json`, then pass its `databasePath` as `workspace`
+on **every workspace-scoped MCP call** (boards, board/task/list reads, task
+creates/updates/state/tags/comments/reflections/moves, exports, and reports).
+The MCP intentionally requires this field; do not rely on its host process
+directory, a `TASKITTY_WORKSPACE` environment variable, or Taskitty's active
+workspace. Only registry-level workspace/group operations and `taskitty_health`
+have no workspace.
+
+If the current checkout has no `taskitty.json`, it is an umbrella or unrelated
+directory, not an implicit target. Find the intended child/project config or
+ask which registered project should be targeted before any workspace-scoped
+MCP call. A CLI fallback may auto-select a config from its current directory,
+but still pass `--workspace` explicitly whenever practical.
 
 Inspect the board and affected task before changing it. Keep title, description, tags, members, start date, and due date current. Add progress as comments. Before marking work done, save a structured reflection with accurate findings; non-empty reflection todos create follow-up tasks and leave a reference to the initial task with #tk:task:<id>. Re-read the board after a workflow state change because routing may move the task. Never guess or assume the id of a newly created board, list, task, tag, member, or comment — other items may have been added in the meantime; use only the `id=` value returned by the creation command, or re-list and match by name to find it.
 
