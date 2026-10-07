@@ -7,6 +7,9 @@ import { fileURLToPath } from "node:url";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const configuredCli = (process.env.TASKITTY_CLI || path.join(scriptDirectory, "taskitty-launcher.cjs")).trim();
+// The urage-blog launcher lives in the sibling skill; blog tools below delegate to it. It is resolved lazily so the
+// Taskitty MCP stays usable when the blog skill is absent. Override with URAGE_BLOG_CLI if it lives elsewhere.
+const blogCli = (process.env.URAGE_BLOG_CLI || path.join(scriptDirectory, "..", "..", "urage-blog", "scripts", "urage-blog-launcher.cjs")).trim();
 const projectDirectory = process.env.TASKITTY_PROJECT_DIR ? path.resolve(process.env.TASKITTY_PROJECT_DIR) : process.cwd();
 const memoryBankConfigPath = path.join(scriptDirectory, "..", "resources", "config.json");
 const memoryBankDirectory = (() => {
@@ -22,7 +25,7 @@ const object = (properties, required = []) => ({ type: "object", properties, req
 const positiveInteger = { type: "integer", minimum: 1 };
 const requiredWorkspace = { type: "string", minLength: 1, description: "Required registered Taskitty database path from the target project's taskitty.json. Never rely on the MCP host's active workspace." };
 const optionalTargetWorkspace = { type: "string", minLength: 1, description: "Optional registered Taskitty database path to move into (cross-workspace). The item is copied there and removed from the source; ids in this parameter's context refer to the destination workspace. Omit for same-workspace moves." };
-const instructions = "Use these MCP tools with the Taskitty skill: the skill selects the project, reads its memory-bank context, and governs lifecycle; this MCP performs every Taskitty read/write. Every workspace-scoped tool requires the registered databasePath from that project's taskitty.json, so it cannot silently use the host or active workspace. Inspect the board and affected task before changing it. Keep title, description, tags, members, start and due dates current. Use add_reflection before marking completed work done. Never guess or assume the id of a newly created board, list, task, tag, member, or comment — other items may have been added in the meantime; use only the id returned by the creation response, or discover it with a list/get call. Do not use raw HTTP, browser automation, Playwright, arbitrary commands, destructive CLI actions, or unregistered workspaces. Boards from the default list template include an \"Under Review\" list — park tasks that need a human decision there (move + explanatory comment + tag) instead of blocking or marking them done.";
+const instructions = "Use these MCP tools with the Taskitty skill: the skill selects the project, reads its memory-bank context, and governs lifecycle; this MCP performs every Taskitty read/write. Every workspace-scoped tool requires the registered databasePath from that project's taskitty.json, so it cannot silently use the host or active workspace. Inspect the board and affected task before changing it. Keep title, description, tags, members, start and due dates current. Use add_reflection before marking completed work done. Never guess or assume the id of a newly created board, list, task, tag, member, or comment — other items may have been added in the meantime; use only the id returned by the creation response, or discover it with a list/get call. Do not use raw HTTP, browser automation, Playwright, arbitrary commands, destructive CLI actions, or unregistered workspaces. Boards from the default list template include an \"Under Review\" list — park tasks that need a human decision there (move + explanatory comment + tag) instead of blocking or marking them done. Blog tools (blog_health, blog_status, blog_posts, blog_endpoint, blog_publish) delegate to the urage-blog launcher and use only the credentials Taskitty already saved in its vault — never pass a password; prefer dry_run before publishing.";
 const tools = [
   { name: "taskitty_health", description: "Check whether the configured Taskitty local API is reachable through the bundled CLI.", inputSchema: object({}) },
   { name: "taskitty_list_boards", description: "List boards in the explicit registered workspace.", inputSchema: object({ workspace: requiredWorkspace }, ["workspace"]) },
@@ -45,6 +48,11 @@ const tools = [
   { name: "taskitty_list_workspace_groups", description: "List named workspace groups (folders) with id, stable alias and parent. Registry-level operation; no workspace argument applies.", inputSchema: object({}) },
   { name: "taskitty_create_workspace", description: "Create a new empty workflow database in Taskitty's data directory and register it (the desktop \"New workspace\" action). Optionally assign it to an existing group by groupId or groupAlias. Registry-level operation; no workspace argument applies.", inputSchema: object({ name: { type: "string", minLength: 1, maxLength: 500 }, groupId: positiveInteger, groupAlias: { type: "string", minLength: 1 } }, ["name"]) },
   { name: "taskitty_create_workspace_group", description: "Create a named workspace group (folder) in the registry (the desktop \"New folder\" action). Optionally nest it under an existing parent by parentId or parentAlias. Registry-level operation; no workspace argument applies.", inputSchema: object({ name: { type: "string", minLength: 1, maxLength: 500 }, parentId: positiveInteger, parentAlias: { type: "string", minLength: 1 } }, ["name"]) },
+  { name: "blog_health", description: "Check that the Taskitty desktop automation API the urage-blog launcher talks to is reachable. Delegates to the urage-blog launcher; no workspace argument applies.", inputSchema: object({}) },
+  { name: "blog_status", description: "Show the saved Blog Posts endpoint and whether Taskitty's vault holds the application password. No secret is ever returned.", inputSchema: object({}) },
+  { name: "blog_posts", description: "List posts already on the saved Blog Posts endpoint through Taskitty's local API.", inputSchema: object({}) },
+  { name: "blog_endpoint", description: "Point the Blog Posts studio at a different endpoint (saves it in Taskitty). Does not change credentials.", inputSchema: object({ endpoint: { type: "string", minLength: 1, description: "Absolute blog posts API endpoint, e.g. https://urage.net/api/posts." } }, ["endpoint"]) },
+  { name: "blog_publish", description: "Publish a blog post using the credentials Taskitty already saved in its vault — never pass a password. Provide content or contentFile. Use dry_run to validate without publishing.", inputSchema: object({ title: { type: "string", minLength: 1, maxLength: 5000 }, content: { type: "string", minLength: 1, maxLength: 200000 }, contentFile: { type: "string", minLength: 1, description: "Optional absolute path to a file whose contents become the post body (use instead of content)." }, image: { type: "string", minLength: 1, description: "Optional image URL." }, date: { type: "string", minLength: 1, description: "Optional ISO date or timestamp." }, status: { type: "string", enum: ["public", "draft", "private"] }, dry_run: { type: "boolean" } }, ["title"]) },
 ];
 
 function requireText(value, label) { if (typeof value !== "string" || !value.trim()) throw new Error(`${label} is required.`); return value.trim(); }
@@ -90,6 +98,28 @@ function runCli(action, args, workspace, cwd = projectDirectory) {
   });
 }
 async function runSequence(steps, workspace) { const output = []; for (const [action, args] of steps) output.push(await runCli(action, args, workspace)); return output.join("\n"); }
+// The launcher's own fallback port is stale, so feed it the same endpoint the rest of the project uses: an explicit
+// override wins, then the project's taskitty.json apiBaseUrl, then the documented loopback default (38473).
+function blogApiBase() {
+  const override = (process.env.TASKITTY_API_BASE || process.env.TASKITTY_API_URL || "").trim();
+  if (override) return override;
+  try {
+    const configured = JSON.parse(readFileSync(path.join(projectDirectory, "taskitty.json"), "utf8"))?.apiBaseUrl;
+    if (typeof configured === "string" && configured.trim()) return configured.trim();
+  } catch { /* Fall back to the documented default when taskitty.json is absent or malformed. */ }
+  return "http://127.0.0.1:38473";
+}
+function runBlog(action, args) {
+  if (!existsSync(blogCli)) throw new Error(`urage-blog launcher not found: ${blogCli}. Set URAGE_BLOG_CLI to urage-blog-launcher.cjs.`);
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [blogCli, action, ...args], { cwd: projectDirectory, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, TASKITTY_API_BASE: blogApiBase() } });
+    let stdout = ""; let stderr = "";
+    child.stdout.on("data", (chunk) => { stdout += chunk; });
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.once("error", reject);
+    child.once("close", (code) => { const output = `${stdout}${stderr}`.trim(); code !== 0 ? reject(new Error(output || `urage-blog launcher exited with code ${code}.`)) : resolve(output || "urage-blog command completed."); });
+  });
+}
 async function call(name, args = {}) {
   switch (name) {
     case "taskitty_health": return runCli("health", [], args.workspace);
@@ -176,6 +206,20 @@ async function call(name, args = {}) {
       if (args.parentId !== undefined) cliArgs.push("--parent-id", positive(args.parentId, "parentId"));
       if (args.parentAlias !== undefined) cliArgs.push("--parent-alias", requireText(args.parentAlias, "parentAlias"));
       return runCli("create-group", cliArgs);
+    }
+    case "blog_health": return runBlog("health", []);
+    case "blog_status": return runBlog("status", []);
+    case "blog_posts": return runBlog("posts", []);
+    case "blog_endpoint": return runBlog("endpoint", ["--endpoint", requireText(args.endpoint, "endpoint")]);
+    case "blog_publish": {
+      const cliArgs = ["--title", requireText(args.title, "title")];
+      if (args.content !== undefined) cliArgs.push("--content", requireText(args.content, "content"));
+      if (args.contentFile !== undefined) cliArgs.push("--content-file", requireText(args.contentFile, "contentFile"));
+      if (args.image !== undefined) cliArgs.push("--image", requireText(args.image, "image"));
+      if (args.date !== undefined) cliArgs.push("--date", requireText(args.date, "date"));
+      if (args.status !== undefined) cliArgs.push("--status", requireText(args.status, "status"));
+      if (args.dry_run === true) cliArgs.push("--dry-run");
+      return runBlog("publish", cliArgs);
     }
     default: throw new Error(`Unknown MCP tool: ${name}`);
   }

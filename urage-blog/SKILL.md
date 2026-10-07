@@ -32,26 +32,43 @@ other. Keep field names compatible with URageNet Admin.
 
 ## Credentials and safety
 
-- Read credentials only from `URAGE_BLOG_USERNAME` and
-  `URAGE_BLOG_APP_PASSWORD` for the CLI. They must never be committed, logged,
-  written to a project config, or added to Taskitty Notes.
-- The desktop UI keeps credentials only in current reactive memory.
+- Primary mode reuses the credentials Taskitty already saved. The Blog Posts
+  studio stores the endpoint in `blog-connection.json` and the application
+  password in the OS vault. The launcher's `health`/`status`/`posts`/`publish`/
+  `endpoint` actions read that saved state through Taskitty's loopback API, so an
+  agent never handles or passes an application password.
+- CI/offline direct mode (the `publish-direct` and `list` actions) reads
+  `URAGE_BLOG_USERNAME` and `URAGE_BLOG_APP_PASSWORD`. They must never be
+  committed, logged, written to a project config, or added to Taskitty Notes.
+- The desktop UI keeps credentials only in the vault, never in reactive memory or
+  Notes.
 - Use HTTPS endpoints, except explicit `localhost` / `127.0.0.1` development
   endpoints.
 - Never use raw shell HTTP calls in instructions; use the release client.
 
 ## CLI
 
+Saved Taskitty credentials — no secret is passed in (the launcher authenticates
+to Taskitty's loopback API and loads the vault record itself):
+
+```powershell
+node "$env:USERPROFILE/.agents/skills/urage-blog/scripts/urage-blog-launcher.cjs" status
+node "$env:USERPROFILE/.agents/skills/urage-blog/scripts/urage-blog-launcher.cjs" posts
+node "$env:USERPROFILE/.agents/skills/urage-blog/scripts/urage-blog-launcher.cjs" publish --title "Post title" --content-file post.md --status draft
+```
+
+CI/offline direct mode — credentials come from the environment:
+
 ```powershell
 $env:URAGE_BLOG_USERNAME = "your-user"
 $env:URAGE_BLOG_APP_PASSWORD = "your application password"
-npm run urage-blog:publish -- "Post title" @post.md draft
-npm run urage-blog:list
+node "$env:USERPROFILE/.agents/skills/urage-blog/scripts/urage-blog-launcher.cjs" list
+node "$env:USERPROFILE/.agents/skills/urage-blog/scripts/urage-blog-launcher.cjs" publish-direct --title "Post title" --content-file post.md --status draft
 ```
 
-`@file` is supported for title/content. Optional positional arguments after
-status are image URL and ISO publication date. `list` GETs the configured
-endpoint and prints one line per existing post (title, status, date, slug).
+`--content-file` reads Markdown from the current working directory; `--dry-run`
+validates a publish without sending. `list` GETs `URAGE_BLOG_API_URL` and prints
+one line per existing post (title, status, date, slug).
 
 ## Verification
 
