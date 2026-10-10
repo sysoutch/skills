@@ -636,7 +636,9 @@ async function cmdAdd(args) {
   const authorId = configAuthorId();
   if (authorId !== null) body.author_id = authorId;
   const r = await api('POST', '/v1/tasks', body);
-  console.log(`Created task id=${r.id}${authorId !== null ? ` (as member ${authorId})` : ''}`);
+  // added_datetime is stamped by the server; the API echoes it so the LLM can report
+  // the creation time without a follow-up read of the task.
+  console.log(`Created task id=${r.id}${authorId !== null ? ` (as member ${authorId})` : ''}${r.added_datetime ? ` added=${r.added_datetime}` : ''}`);
 }
 
 const FLAG_PATCHES = {
@@ -653,7 +655,9 @@ async function cmdFlag(action, args) {
   if (!args[0]) fail(`Usage: taskitty ${action} <task_id>`);
   const [field, value] = FLAG_PATCHES[action];
   const r = await api('PATCH', `/v1/tasks/${args[0]}`, { [field]: value });
-  console.log(`Marked task ${r.id ?? args[0]} as ${FLAG_LABELS[action]}`);
+  // done_datetime is stamped by the server (no request field supplies it); echo it so the
+  // LLM can report the completion time without re-reading the task.
+  console.log(`Marked task ${r.id ?? args[0]} as ${FLAG_LABELS[action]}${r.done_datetime ? ` done=${r.done_datetime}` : ''}`);
 }
 
 async function cmdRename(args) {
@@ -950,7 +954,7 @@ async function cmdCommentAttach(args) {
 }
 async function cmdTags(args) { const boardId = requireBoardId(args[0], 'tags <board_id>'); for (const tag of await api('POST', `/v1/boards/${boardId}/tags`, {})) console.log(`${tag.id}  ${tag.name}`); }
 async function cmdCreateTag(args) { if (!args[1]) fail('Usage: taskitty create-tag "<board_id>" "name" [color]'); const boardId = requireBoardId(args[0], 'create-tag "<board_id>" "name" [color]'); const r = await api('POST', '/v1/tags', { board_id:boardId, name:payloadArg(args[1]), color:args[2] }); console.log(`Created tag id=${r.id} on board ${boardId}`); }
-async function cmdMove(args) { if (!args[0] || !args[1]) fail('Usage: taskitty move <task_id> <list_id> [--target-workspace <path>]'); const body = { list_id:Number(args[1]) }; if (cliTargetWorkspace) body.target_workspace = cliTargetWorkspace; const r = await api('POST', `/v1/tasks/${args[0]}/move`, body); console.log(cliTargetWorkspace ? `Moved task ${r.id} to list ${r.listId} in workspace ${cliTargetWorkspace}` : `Moved task ${r.id} to list ${r.listId}`); }
+async function cmdMove(args) { if (!args[0] || !args[1]) fail('Usage: taskitty move <task_id> <list_id> [--target-workspace <path>]'); const body = { list_id:Number(args[1]) }; if (cliTargetWorkspace) body.target_workspace = cliTargetWorkspace; const r = await api('POST', `/v1/tasks/${args[0]}/move`, body); console.log(`${cliTargetWorkspace ? `Moved task ${r.id} to list ${r.listId} in workspace ${cliTargetWorkspace}` : `Moved task ${r.id} to list ${r.listId}`}${r.done_datetime ? ` done=${r.done_datetime}` : ''}`); }
 async function cmdMoveList(args) { if (!args[0] || !args[1]) fail('Usage: taskitty move-list <list_id> <board_id> [--target-workspace <path>]'); const body = { board_id:Number(args[1]) }; if (cliTargetWorkspace) body.target_workspace = cliTargetWorkspace; const r = await api('POST', `/v1/lists/${args[0]}/move`, body); console.log(cliTargetWorkspace ? `Moved list ${r.id} to board ${r.boardId} in workspace ${cliTargetWorkspace}` : `Moved list ${r.id} to board ${r.boardId}`); }
 async function cmdMoveBoard(args) { if (!args[0]) fail('Usage: taskitty move-board <board_id> --target-workspace <path>'); if (!cliTargetWorkspace) fail('move-board requires --target-workspace <path> (cross-workspace only; same-workspace board moves are not supported by the API)'); const r = await api('POST', `/v1/boards/${args[0]}/move`, { target_workspace: cliTargetWorkspace }); console.log(`Moved board ${r.id} to workspace ${cliTargetWorkspace}`); }
 async function cmdTagTask(args) { if (!args[0] || !args[1]) fail('Usage: taskitty tag-task <task_id> <tag_id>'); await api('POST', `/v1/tasks/${args[0]}/tags`, {tag_id:Number(args[1])}); console.log(`Tagged task ${args[0]} with tag ${args[1]}`); }
