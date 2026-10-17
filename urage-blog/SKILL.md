@@ -30,6 +30,33 @@ The Taskitty Blog Posts UI (`frontend/src/blog.rs`) and release client
 Do not change one client without changing or deliberately documenting the
 other. Keep field names compatible with URageNet Admin.
 
+## Editing existing posts (launcher only)
+
+Taskitty's loopback API proxies create and list only. The launcher's `post`, `update`,
+`trash`, `restore` and `upload-image` actions (MCP: `blog_post_get`, `blog_update`,
+`blog_trash`, `blog_restore`, `blog_upload_image`) talk to the saved endpoint directly,
+using URageNet's existing routes:
+
+- `GET <endpoint>/:slug` reads a post (drafts too, with the saved credentials).
+- `POST <endpoint>/:id` updates it. URageNet replaces every field on update, so `update`
+  fetches the post first and changes only the given fields; the slug (URL) stays. It reads
+  the post back and reports anything the server did not store.
+- `DELETE <endpoint>/:slug` moves a post to the bin (soft delete, set to draft);
+  `POST <endpoint>/:slug/restore` brings it back. There is no permanent delete here.
+- `POST <api>/upload` (field `image`) stores an image under `/media/images/` and returns its URL.
+
+They load the saved connection from Taskitty's loopback-only `/v1/blog/credentials` route
+inside the launcher process; the application password is never printed, logged or returned,
+and only HTTPS (or localhost) endpoints receive it. The Taskitty Blog Posts UI has no
+editing yet; this is a deliberate launcher-only extension of the contract.
+
+Edit a post with `update` instead of publishing a second copy. Post content is Markdown;
+URageNet renders it with marked and sanitizes it (`/libs/content-security.js`): only plain
+tags (`div`, `p`, `h1`-`h6`, `a`, `img`, `i`, `span`, tables, lists...) and the attributes
+`href`, `src`, `alt`, `title`, `class`, `width`, `height`, `target`, `rel` survive. Inline
+`style` and `<svg>` are removed; style with the site's classes (`card`) and Bootstrap Icons
+(`<i class="bi bi-download"></i>`).
+
 ## Credentials and safety
 
 - Primary mode reuses the credentials Taskitty already saved. The Blog Posts
@@ -55,7 +82,15 @@ to Taskitty's loopback API and loads the vault record itself):
 node "$env:USERPROFILE/.agents/skills/urage-blog/scripts/urage-blog-launcher.cjs" status
 node "$env:USERPROFILE/.agents/skills/urage-blog/scripts/urage-blog-launcher.cjs" posts
 node "$env:USERPROFILE/.agents/skills/urage-blog/scripts/urage-blog-launcher.cjs" publish --title "Post title" --content-file post.md --status draft
+node "$env:USERPROFILE/.agents/skills/urage-blog/scripts/urage-blog-launcher.cjs" post --slug my-post
+node "$env:USERPROFILE/.agents/skills/urage-blog/scripts/urage-blog-launcher.cjs" update --slug my-post --content-file post.md --dry-run
+node "$env:USERPROFILE/.agents/skills/urage-blog/scripts/urage-blog-launcher.cjs" update --slug my-post --status public
+node "$env:USERPROFILE/.agents/skills/urage-blog/scripts/urage-blog-launcher.cjs" trash --slug my-post
+node "$env:USERPROFILE/.agents/skills/urage-blog/scripts/urage-blog-launcher.cjs" upload-image --file screenshot.png
 ```
+
+Set `TASKITTY_API_BASE` to the project's `apiBaseUrl` from `taskitty.json` when Taskitty's
+API is not on the default port (the MCP does this automatically).
 
 CI/offline direct mode — credentials come from the environment:
 
