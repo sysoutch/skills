@@ -5,6 +5,16 @@ description: Use the Taskitty MCP server to inspect and update local Taskitty bo
 
 # Taskitty
 
+## The rule
+
+In any project with a `taskitty.json`, every request that changes files gets a task, in real time:
+
+1. **Before the first edit:** `taskitty_start_work`.
+2. **A new request arrives mid-task:** `taskitty_capture`, straight away.
+3. **When it's verified:** `taskitty_finish_work`, saying what was tested and what wasn't. Never log work in a batch afterwards.
+
+A real human decision goes to **Under Review** instead. If these tools are deferred, load them with ToolSearch. The `taskitty-guard` hooks in `~/.claude/settings.json` enforce this: a turn that changes files without touching the board is sent back once.
+
 ## Combined default workflow
 
 Use the **skill and MCP together**, with distinct responsibilities:
