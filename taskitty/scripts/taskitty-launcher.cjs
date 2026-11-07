@@ -825,6 +825,49 @@ async function cmdReportText(args) {
   process.stdout.write(response.text.endsWith('\n') ? response.text : `${response.text}\n`);
 }
 
+// Releases done tasks that aren't released yet: each gets a release date and the version it shipped in.
+async function cmdRelease(args) {
+  const usage = [
+    'Usage: taskitty release [--version X.Y.Z] [--board <board_id>] [--tasks id,id] [--date <ISO datetime>] [--dry-run]',
+    '            Every done, unreleased task (of the workspace, the board, or the given ids) gets released, a',
+    '            released date (default now) and releasedInVersion (default the workspace version, see `version`).',
+  ].join('\n');
+  const body = {};
+  for (let i = 0; i < args.length; i++) {
+    const flag = args[i];
+    const value = () => {
+      if (args[i + 1] === undefined || args[i + 1].startsWith('--')) fail(`${usage}
+Missing value after ${flag}`);
+      return args[++i];
+    };
+    if (flag === '--version') body.version = value().trim();
+    else if (flag === '--board') { const id = Number(value()); if (!Number.isInteger(id) || id <= 0) fail(`${usage}
+--board needs a positive id`); body.board_id = id; }
+    else if (flag === '--tasks') {
+      const ids = value().split(',').map((part) => Number(part.trim()));
+      if (!ids.length || ids.some((id) => !Number.isInteger(id) || id <= 0)) fail(`${usage}
+--tasks needs positive integer ids`);
+      body.task_ids = ids;
+    } else if (flag === '--date') body.released_datetime = value().trim();
+    else if (flag === '--dry-run') body.dry_run = true;
+    else fail(`${usage}
+Unknown argument: ${flag}`);
+  }
+  if (body.version !== undefined && !/^\d+\.\d+\.\d+$/.test(body.version)) fail(`${usage}
+--version must be MAJOR.MINOR.PATCH, e.g. 0.9.0`);
+  const r = await api('POST', '/v1/release', body);
+  console.log(`${r.dry_run ? 'Would release' : 'Released'} ${r.count} task(s) as version ${r.version} at ${r.released_datetime}`);
+  (r.tasks || []).forEach((t) => console.log(`  id=${t.id} board=${t.board_id} ${t.name}`));
+}
+
+// Shows the workspace's release version, or sets it.
+async function cmdVersion(args) {
+  const version = args[0] === undefined ? undefined : String(args[0]).trim();
+  if (version !== undefined && !/^\d+\.\d+\.\d+$/.test(version)) fail('Usage: taskitty version [X.Y.Z]  (shows the workspace version, or sets it)');
+  const r = await api('POST', '/v1/workspace/version', version === undefined ? {} : { version });
+  console.log(`${version === undefined ? 'Workspace version' : 'Workspace version set to'} ${r.version}`);
+}
+
 async function cmdDeleteMarkdown(args) {
   const usage = 'Usage: taskitty delete-markdown ["<board_id>"] [--out <path>]\n' +
     'Deletes all markdown export files for the specified board, or all boards if no board_id is given.\n' +
@@ -1023,6 +1066,8 @@ switch (action) {
   case 'delete': run(() => cmdDelete(rest)); break;
   case 'export-markdown': run(() => cmdExportMarkdown(rest)); break;
   case 'report-text': run(() => cmdReportText(rest)); break;
+  case 'release': run(() => cmdRelease(rest)); break;
+  case 'version': run(() => cmdVersion(rest)); break;
   case 'delete-markdown': run(() => cmdDeleteMarkdown(rest)); break;
   default:
     console.log(`Taskitty API CLI - endpoint ${API_URL} (override with TASKITTY_API_URL)`);
@@ -1047,6 +1092,8 @@ switch (action) {
     console.log('Export    : export-markdown <board_id> [--scope board|list|task] [--format lists|single] [--list-id N|--task-id N] [--max-age-days N|--limit N|--clean] [--out file.md|dir/]');
     console.log('            filters like the GUI: --tags id,id --members id,id --milestones id,id --versions v1,v2 --due any|overdue|today --hide-hidden');
     console.log('Reports   : report-text <progress|changelog|roadmap> [--boards id,id] [--tags name,name] [--versions v1,v2] [--from-date YYYY-MM-DD] [--to-date YYYY-MM-DD]');
+    console.log('Releases  : version [X.Y.Z] shows or sets the workspace version | release [--version X.Y.Z] [--board id] [--tasks id,id] [--date ISO] [--dry-run]');
+    console.log('            release stamps every done, unreleased task with a released date and the version it shipped in');
     console.log('Workspaces: workspace-groups | create-workspace "name" [--group-id N | --group-alias X]');
     console.log('            create-group "name" [--parent-id N | --parent-alias X]  (registry-level; no --workspace)');
     console.log('            assign-group <path-or-alias> [--group-id N | --group-alias X] | --ungroup  (move a workspace into/out of a folder)');

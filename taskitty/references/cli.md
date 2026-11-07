@@ -265,6 +265,19 @@ When workflow routing is configured:
 
 After `done`, `doing`, or `on_hold`, refetch the board when placement matters.
 
+## Releases
+
+```sh
+taskitty version                      # the workspace's release version
+taskitty version 0.9.0                # set it (MAJOR.MINOR.PATCH), e.g. to match the project's version
+taskitty release --dry-run            # which done, unreleased tasks would be released
+taskitty release                      # release them all: released date = now, version = workspace version
+taskitty release --version 0.9.1 --board 1 --date 2026-11-07T12:00:00Z
+taskitty release --tasks 12,14        # only these tasks (still only if they're done and unreleased)
+```
+
+API: `POST /v1/workspace/version {version?}` and `POST /v1/release {version?, board_id?, task_ids?, released_datetime?, dry_run?}`; both take the usual `workspace` field. MCP: `taskitty_version`, `taskitty_release`.
+
 ## Reporting
 
 Always report Taskitty IDs together with human-readable names.

@@ -25,7 +25,7 @@ const object = (properties, required = []) => ({ type: "object", properties, req
 const positiveInteger = { type: "integer", minimum: 1 };
 const requiredWorkspace = { type: "string", minLength: 1, description: "Required registered Taskitty database path from the target project's taskitty.json. Never rely on the MCP host's active workspace." };
 const optionalTargetWorkspace = { type: "string", minLength: 1, description: "Optional registered Taskitty database path to move into (cross-workspace). The item is copied there and removed from the source; ids in this parameter's context refer to the destination workspace. Omit for same-workspace moves." };
-const instructions = "Use these MCP tools with the Taskitty skill: the skill selects the project, reads its memory-bank context, and governs lifecycle; this MCP performs every Taskitty read/write. Every workspace-scoped tool requires the registered databasePath from that project's taskitty.json, so it cannot silently use the host or active workspace. For everyday work use taskitty_start_work before the first edit, taskitty_finish_work when verified, and taskitty_capture for anything that comes up mid-task. Inspect the board and affected task before changing it. Keep title, description, tags, members, start and due dates current. Use add_reflection before marking completed work done. Never guess or assume the id of a newly created board, list, task, tag, member, or comment — other items may have been added in the meantime; use only the id returned by the creation response, or discover it with a list/get call. Do not use raw HTTP, browser automation, Playwright, arbitrary commands, destructive CLI actions, or unregistered workspaces. Boards from the default list template include an \"Under Review\" list — park tasks that need a human decision there (move + explanatory comment + tag) instead of blocking or marking them done. Blog tools (blog_health, blog_status, blog_posts, blog_endpoint, blog_publish, blog_post_get, blog_update, blog_trash, blog_restore, blog_upload_image) delegate to the urage-blog launcher and use only the credentials Taskitty already saved in its vault — never pass a password; prefer dry_run before publishing or updating. Edit an existing post with blog_update (by slug) instead of publishing a second copy.";
+const instructions = "Use these MCP tools with the Taskitty skill: the skill selects the project, reads its memory-bank context, and governs lifecycle; this MCP performs every Taskitty read/write. When you edit in another project directory, read every taskitty.json there (one or several) and track that work in those workspaces too. Every new task is tagged: pass at least two tagIds (a type and an area; taskitty_list_tags lists them) to taskitty_start_work, taskitty_capture and taskitty_create_task. Every workspace-scoped tool requires the registered databasePath from that project's taskitty.json, so it cannot silently use the host or active workspace. For everyday work use taskitty_start_work before the first edit, taskitty_finish_work when verified, and taskitty_capture for anything that comes up mid-task. Inspect the board and affected task before changing it. Keep title, description, tags, members, start and due dates current. Use add_reflection before marking completed work done. Never guess or assume the id of a newly created board, list, task, tag, member, or comment — other items may have been added in the meantime; use only the id returned by the creation response, or discover it with a list/get call. Do not use raw HTTP, browser automation, Playwright, arbitrary commands, destructive CLI actions, or unregistered workspaces. Boards from the default list template include an \"Under Review\" list — park tasks that need a human decision there (move + explanatory comment + tag) instead of blocking or marking them done. Blog tools (blog_health, blog_status, blog_posts, blog_endpoint, blog_publish, blog_post_get, blog_update, blog_trash, blog_restore, blog_upload_image) delegate to the urage-blog launcher and use only the credentials Taskitty already saved in its vault — never pass a password; prefer dry_run before publishing or updating. Edit an existing post with blog_update (by slug) instead of publishing a second copy.";
 const tools = [
   { name: "taskitty_health", description: "Check whether the configured Taskitty local API is reachable through the bundled CLI.", inputSchema: object({}) },
   { name: "taskitty_list_boards", description: "List boards in the explicit registered workspace.", inputSchema: object({ workspace: requiredWorkspace }, ["workspace"]) },
@@ -34,10 +34,10 @@ const tools = [
   { name: "taskitty_get_task", description: "Get a Taskitty task with its details and comments in the explicit registered workspace.", inputSchema: object({ taskId: positiveInteger, workspace: requiredWorkspace }, ["taskId", "workspace"]) },
   { name: "taskitty_list_tags", description: "List tags for a board in the explicit registered workspace.", inputSchema: object({ boardId: positiveInteger, workspace: requiredWorkspace }, ["boardId", "workspace"]) },
   { name: "taskitty_list_members", description: "List available members in the explicit registered workspace.", inputSchema: object({ workspace: requiredWorkspace }, ["workspace"]) },
-  { name: "taskitty_start_work", description: "Start tracking work in one call, before the first edit. Give a title to create a task in the board's Doing list, or a taskId to pick up an existing one. An identical title already in Doing is reused. Sets the task to doing and applies any tagIds. Returns the task id for taskitty_finish_work.", inputSchema: object({ title: { type: "string", minLength: 1, maxLength: 500 }, taskId: positiveInteger, description: { type: "string", maxLength: 50000 }, tagIds: { type: "array", items: positiveInteger }, boardId: { ...positiveInteger, description: "Optional; defaults to the workspace's first board." }, workspace: requiredWorkspace }, ["workspace"]) },
+  { name: "taskitty_start_work", description: "Start tracking work in one call, before the first edit. Give a title to create a task in the board's Doing list, or a taskId to pick up an existing one. An identical title already in Doing is reused. Sets the task to doing and applies any tagIds. Always tag it: pass at least two tagIds (from taskitty_list_tags), a type (Feature, Improvement, Bug...) and an area (UI, Visual, Networking...). Returns the task id for taskitty_finish_work.", inputSchema: object({ title: { type: "string", minLength: 1, maxLength: 500 }, taskId: positiveInteger, description: { type: "string", maxLength: 50000 }, tagIds: { type: "array", items: positiveInteger }, boardId: { ...positiveInteger, description: "Optional; defaults to the workspace's first board." }, workspace: requiredWorkspace }, ["workspace"]) },
   { name: "taskitty_finish_work", description: "Finish a task in one call: saves the reflection and marks it done. verified is required and says what was actually tested and how. Use the Under Review list instead if a human decision is still open. Every line in todos creates a follow-up task.", inputSchema: object({ taskId: positiveInteger, verified: { type: "string", minLength: 1, maxLength: 50000, description: "What was tested and how. Say plainly what was not." }, solution: { type: "string", maxLength: 50000 }, findings: { type: "string", maxLength: 50000 }, troubles: { type: "string", maxLength: 50000 }, todos: { type: "string", maxLength: 50000 }, other: { type: "string", maxLength: 50000 }, workspace: requiredWorkspace }, ["taskId", "verified", "workspace"]) },
-  { name: "taskitty_capture", description: "Add a one-line task without leaving the current work, for a request that arrives mid-task or something to do later. Goes to the Normal Priority list unless priority says otherwise.", inputSchema: object({ title: { type: "string", minLength: 1, maxLength: 500 }, description: { type: "string", maxLength: 50000 }, priority: { type: "string", enum: ["high", "normal", "low"] }, boardId: { ...positiveInteger, description: "Optional; defaults to the workspace's first board." }, workspace: requiredWorkspace }, ["title", "workspace"]) },
-  { name: "taskitty_create_task", description: "Create a task in an existing list in the explicit registered workspace. Inspect the board first. The response returns the created task's id and the server-stamped added_datetime; never guess either — task creation never accepts an added date.", inputSchema: object({ listId: positiveInteger, title: { type: "string", minLength: 1, maxLength: 500 }, description: { type: "string", maxLength: 50000 }, workspace: requiredWorkspace }, ["listId", "title", "workspace"]) },
+  { name: "taskitty_capture", description: "Add a one-line task without leaving the current work, for a request that arrives mid-task or something to do later. Goes to the Normal Priority list unless priority says otherwise. Always tag it: pass at least two tagIds (from taskitty_list_tags), a type (Feature, Improvement, Bug...) and an area (UI, Visual, Networking...).", inputSchema: object({ title: { type: "string", minLength: 1, maxLength: 500 }, description: { type: "string", maxLength: 50000 }, tagIds: { type: "array", items: positiveInteger }, priority: { type: "string", enum: ["high", "normal", "low"] }, boardId: { ...positiveInteger, description: "Optional; defaults to the workspace's first board." }, workspace: requiredWorkspace }, ["title", "workspace"]) },
+  { name: "taskitty_create_task", description: "Create a task in an existing list in the explicit registered workspace. Inspect the board first. The response returns the created task's id and the server-stamped added_datetime; never guess either — task creation never accepts an added date. Always tag it: pass at least two tagIds (from taskitty_list_tags), a type (Feature, Improvement, Bug...) and an area (UI, Visual, Networking...).", inputSchema: object({ listId: positiveInteger, title: { type: "string", minLength: 1, maxLength: 500 }, description: { type: "string", maxLength: 50000 }, tagIds: { type: "array", items: positiveInteger }, workspace: requiredWorkspace }, ["listId", "title", "workspace"]) },
   { name: "taskitty_update_task", description: "Update a task in the explicit registered workspace. Use ISO-8601 UTC dates, or clear to remove a date.", inputSchema: object({ taskId: positiveInteger, title: { type: "string", minLength: 1, maxLength: 500 }, description: { type: "string", maxLength: 50000 }, startDate: { type: "string", minLength: 1 }, dueDate: { type: "string", minLength: 1 }, workspace: requiredWorkspace }, ["taskId", "workspace"]) },
   { name: "taskitty_set_task_state", description: "Set one task state in the explicit registered workspace. Set doing when implementation starts; after verified work, a progress comment, and finishing reflection, set done unless a real unresolved human decision requires Under Review. The response reports the server-stamped done_datetime when the task becomes done.", inputSchema: object({ taskId: positiveInteger, state: { type: "string", enum: ["doing", "not_doing", "done", "not_done", "on_hold", "not_on_hold"] }, workspace: requiredWorkspace }, ["taskId", "state", "workspace"]) },
   { name: "taskitty_set_task_tag", description: "Add or remove one existing tag from a task in the explicit registered workspace.", inputSchema: object({ taskId: positiveInteger, tagId: positiveInteger, present: { type: "boolean" }, workspace: requiredWorkspace }, ["taskId", "tagId", "present", "workspace"]) },
@@ -47,6 +47,8 @@ const tools = [
   { name: "taskitty_add_comment", description: "Add a progress comment to a task in the explicit registered workspace.", inputSchema: object({ taskId: positiveInteger, message: { type: "string", minLength: 1, maxLength: 50000 }, workspace: requiredWorkspace }, ["taskId", "message", "workspace"]) },
   { name: "taskitty_add_reflection", description: "Create a structured finishing reflection in the explicit registered workspace. Call before setting a task done; every non-empty todos line creates a new task.", inputSchema: object({ taskId: positiveInteger, cause: { type: "string", maxLength: 50000 }, solution: { type: "string", maxLength: 50000 }, troubles: { type: "string", maxLength: 50000 }, findings: { type: "string", maxLength: 50000 }, todos: { type: "string", maxLength: 50000, description: "Optional; omit or pass an empty string for no follow-up tasks. Every non-empty line creates one new task." }, other: { type: "string", maxLength: 50000 }, createBlogPost: { type: "boolean" }, createFollowUpTask: { type: "boolean" }, workspace: requiredWorkspace }, ["taskId", "workspace"]) },
   { name: "taskitty_export_board", description: "Export explicit-workspace board state to Markdown. outputDirectory must be inside the target project's memory-bank/exports directory; stale task files are cleaned by default.", inputSchema: object({ boardId: positiveInteger, outputDirectory: { type: "string", minLength: 1 }, maxAgeDays: { type: "integer", minimum: 1, description: "Optional; keep only cards whose last activity is within this many days." }, limit: { type: "integer", minimum: 1, description: "Optional; per list, keep at most this many of the most recently active cards." }, clean: { type: "boolean" }, workspace: requiredWorkspace }, ["boardId", "outputDirectory", "workspace"]) },
+  { name: "taskitty_release", description: "Release done tasks: every done task that isn't released yet (in the workspace, one board, or the given task ids) gets released, a released date and the version it shipped in. version defaults to the workspace version (taskitty_version) and released_datetime to now. Use dry_run first to see which tasks it would release.", inputSchema: object({ version: { type: "string", description: "MAJOR.MINOR.PATCH, e.g. 0.9.0. Defaults to the workspace version." }, boardId: positiveInteger, taskIds: { type: "array", items: positiveInteger }, released_datetime: { type: "string", description: "Optional ISO datetime of the release; defaults to now." }, dry_run: { type: "boolean" }, workspace: requiredWorkspace }, ["workspace"]) },
+  { name: "taskitty_version", description: "Show the workspace's release version, or set it (MAJOR.MINOR.PATCH) to match the project's own version before releasing tasks.", inputSchema: object({ version: { type: "string", description: "Optional new version, e.g. 0.9.0. Omit to just read it." }, workspace: requiredWorkspace }, ["workspace"]) },
   { name: "taskitty_generate_report", description: "Generate Progress, Changelog, or Roadmap Markdown from the explicit registered workspace.", inputSchema: object({ kind: { type: "string", enum: ["progress", "changelog", "roadmap"] }, boards: { type: "array", items: positiveInteger }, tags: { type: "array", items: { type: "string" } }, milestones: { type: "array", items: positiveInteger }, versions: { type: "array", items: { type: "string" } }, from_date: { type: "string", description: "Optional inclusive ISO date or timestamp." }, to_date: { type: "string", description: "Optional exclusive ISO date or timestamp." }, includeUpcoming: { type: "boolean" }, includeHiddenCards: { type: "boolean" }, includeHiddenLists: { type: "boolean" }, preferDoneMessage: { type: "boolean" }, workspace: requiredWorkspace }, ["kind", "workspace"]) },
   { name: "taskitty_list_workspace_groups", description: "List named workspace groups (folders) with id, stable alias and parent. Registry-level operation; no workspace argument applies.", inputSchema: object({}) },
   { name: "taskitty_create_workspace", description: "Create a new empty workflow database in Taskitty's data directory and register it (the desktop \"New workspace\" action). Optionally assign it to an existing group by groupId or groupAlias. Registry-level operation; no workspace argument applies.", inputSchema: object({ name: { type: "string", minLength: 1, maxLength: 500 }, groupId: positiveInteger, groupAlias: { type: "string", minLength: 1 } }, ["name"]) },
@@ -145,7 +147,7 @@ async function addTask(listId, args) {
   return { taskId, created };
 }
 async function startWork(args) {
-  const lines = []; let taskId = args.taskId !== undefined ? positive(args.taskId, "taskId") : undefined;
+  const lines = []; let taskId = args.taskId !== undefined ? positive(args.taskId, "taskId") : undefined, created = false;
   if (!taskId) {
     const listId = await listNamed(/^doing$/i, "Doing", args), title = requireText(args.title, "title or taskId");
     const open = await runCli("list-tasks", [listId], args.workspace);
@@ -155,10 +157,13 @@ async function startWork(args) {
     else {
       const added = await addTask(listId, args);
       taskId = added.taskId;
+      created = true;
       lines.push(added.created);
     }
   }
-  for (const tagId of args.tagIds || []) await runCli("tag-task", [taskId, positive(tagId, "tagIds")], args.workspace);
+  // A new task must end up with at least two tags (applyTags says so if not); an existing one gets any tagIds given.
+  if (created) lines.push(await applyTags(taskId, args));
+  else for (const tagId of args.tagIds || []) await runCli("tag-task", [taskId, positive(tagId, "tagIds")], args.workspace);
   lines.push(await runCli("doing", [taskId], args.workspace));
   return [...lines, `Working on task id=${taskId}. Finish it with taskitty_finish_work.`].join("\n");
 }
@@ -169,9 +174,18 @@ async function finishWork(args) {
   for (const property of ["solution", "troubles", "todos", "other"]) if (args[property] && String(args[property]).trim()) flags.push(`--${property}`, args[property].trim());
   return `${await runCli("reflections", [taskId, ...flags], args.workspace)}\n${await runCli("done", [taskId], args.workspace)}`;
 }
+// Every new task gets tags: at least two, a type and an area. Applied right after creation; without any, the
+// response says so, so the caller adds them (taskitty_set_task_tag).
+async function applyTags(taskId, args) {
+  const ids = args.tagIds || [];
+  for (const tagId of ids) await runCli("tag-task", [taskId, positive(tagId, "tagIds")], args.workspace);
+  if (ids.length >= 2) return `Tagged task ${taskId} with ${ids.length} tags.`;
+  return `Task ${taskId} has ${ids.length ? "only one tag" : "no tags"}: add at least two (a type and an area) with taskitty_set_task_tag; taskitty_list_tags lists them.`;
+}
 async function capture(args) {
   const name = { high: /^high/i, low: /^low/i }[args.priority] || /^normal/i;
-  return (await addTask(await listNamed(name, `${args.priority || "normal"} priority`, args), args)).created;
+  const added = await addTask(await listNamed(name, `${args.priority || "normal"} priority`, args), args);
+  return added.taskId ? `${added.created}\n${await applyTags(added.taskId, args)}` : added.created;
 }
 async function call(name, args = {}) {
   switch (name) {
@@ -188,7 +202,9 @@ async function call(name, args = {}) {
     case "taskitty_create_task": {
       const output = await runCli("add", [positive(args.listId, "listId"), requireText(args.title, "title")], args.workspace);
       const taskId = output.match(/Created task id=(\d+)/)?.[1];
-      return !taskId || args.description === undefined ? output : `${output}\n${await runCli("description", [taskId, requireText(args.description, "description")], args.workspace)}`;
+      if (!taskId) return output;
+      const described = args.description === undefined ? output : `${output}\n${await runCli("description", [taskId, requireText(args.description, "description")], args.workspace)}`;
+      return `${described}\n${await applyTags(taskId, args)}`;
     }
     case "taskitty_update_task": {
       const taskId = positive(args.taskId, "taskId"); const steps = [];
@@ -234,6 +250,18 @@ async function call(name, args = {}) {
       if (args.limit !== undefined) cliArgs.push("--limit", positive(args.limit, "limit"));
       if (args.clean !== false) cliArgs.push("--clean");
       return runCli("export-markdown", cliArgs, args.workspace, exportTarget.projectDirectory);
+    }
+    case "taskitty_release": {
+      const cliArgs = [];
+      if (args.version !== undefined) cliArgs.push("--version", requireText(args.version, "version"));
+      if (args.boardId !== undefined) cliArgs.push("--board", String(positive(args.boardId, "boardId")));
+      if (args.taskIds?.length) cliArgs.push("--tasks", args.taskIds.map((id) => positive(id, "taskIds")).join(","));
+      if (args.released_datetime !== undefined) cliArgs.push("--date", requireText(args.released_datetime, "released_datetime"));
+      if (args.dry_run === true) cliArgs.push("--dry-run");
+      return runCli("release", cliArgs, args.workspace);
+    }
+    case "taskitty_version": {
+      return runCli("version", args.version === undefined ? [] : [requireText(args.version, "version")], args.workspace);
     }
     case "taskitty_generate_report": {
       const cliArgs = [requireText(args.kind, "kind")];

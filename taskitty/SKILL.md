@@ -68,6 +68,25 @@ but still pass `--workspace` explicitly whenever practical.
 
 Inspect the board and affected task before changing it. Keep title, description, tags, members, start date, and due date current. Add progress as comments. Before marking work done, save a structured reflection with accurate findings; non-empty reflection todos create follow-up tasks and leave a reference to the initial task with #tk:task:<id>. Re-read the board after a workflow state change because routing may move the task. Never guess or assume the id of a newly created board, list, task, tag, member, or comment — other items may have been added in the meantime; use only the `id=` value returned by the creation command, or re-list and match by name to find it. The same command response also carries the server-stamped `added_datetime` (and `edited_datetime`/`last_activity_datetime`) for the new task — report that creation datetime from the response instead of re-reading the task or guessing from the local clock. Likewise, marking a task done returns the server-stamped `done_datetime` in the same response — report the completion datetime from it rather than re-reading the task.
 
+## Work in other project directories
+
+Work often reaches outside the project you started in: a shared skill repo, a sibling app, a library. Before
+editing in another directory, look for `taskitty.json` files there (its root and the sub-projects you touch: there
+can be one or several). Read each one and track that part of the work in **its** workspace (its `databasePath`)
+as well: `taskitty_start_work` before editing there, `taskitty_finish_work` when it's verified, the same way as
+in the main project. A change that spans projects gets a task in each project's workspace, each saying what was
+done there.
+
+## Tags (required)
+
+Every task gets tags as it's created: at least two, a **type** (Feature, Improvement, Bug, Serious Bug,
+Optimization, Refactor, Documentation, Localization, Testing...) and an **area** (UI, UX, Visual, Animation,
+Sound FX, Camera, Player, Networking, Level Design...), plus a size tag when it helps. Read the board's tags with
+`taskitty_list_tags` and pass their ids as `tagIds` to `taskitty_start_work`, `taskitty_capture` and
+`taskitty_create_task`; those responses say when a task still has fewer than two. Add a missing one with
+`taskitty_set_task_tag`. Ideas and nice-to-haves also get an Idea tag where the board has one (create it with the
+CLI `create-tag` if it doesn't). Never leave a task untagged.
+
 ## Task lifecycle (required)
 
 When beginning implementation of an existing Taskitty task, immediately set its state to `doing` through `taskitty_set_task_state` and re-read it to confirm its routed list/state. Do this before making implementation changes, unless it is already `done`, `on_hold`, or explicitly awaiting review.
@@ -75,6 +94,12 @@ When beginning implementation of an existing Taskitty task, immediately set its 
 When the requested work is implemented and verified to the appropriate boundary, add the factual progress comment and structured finishing reflection, then set the task state to `done` yourself. Do not wait for the user merely to move a completed task. Human attention is required only for a real unresolved decision, external authority, missing input, or failed verification that prevents a truthful completion claim. In those cases, use the **Under Review** workflow below instead of setting `done`.
 
 Never use raw HTTP, browser automation, Playwright, destructive deletes, or a made-up command for Taskitty. Use only registered workspaces.
+
+## Releases and versions
+
+Each workspace keeps a release version (MAJOR.MINOR.PATCH, default 0.1.0). Keep it equal to the project's own version: read it with `taskitty_version` and set it with `taskitty_version` + `version` whenever the project's version changes (CLI: `version [X.Y.Z]`).
+
+When work ships (a deploy, a store release, a tagged build), release it with `taskitty_release`: every done task that isn't released yet gets released, a released date (default now) and the version it shipped in (default the workspace version). Narrow it with `boardId` or `taskIds`, and run it with `dry_run: true` first to see what it would release. Already released tasks are never touched again, so releasing after every deploy is safe. Only release work that actually went out; a done task that's still waiting for a deploy stays unreleased until then. CLI: `release [--version X.Y.Z] [--board id] [--tasks id,id] [--date ISO] [--dry-run]`.
 
 ## Session start (memory bank)
 
