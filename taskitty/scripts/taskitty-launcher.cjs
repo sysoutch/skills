@@ -898,6 +898,143 @@ async function cmdAgentContext() {
   ].join('\n'));
 }
 
+// --- Activity (calendar view) -------------------------------------------------
+// Groups every task in the workspace by local calendar day: what was finished,
+// added, worked on (last activity) and scheduled (start/due) in the range, plus
+// what is coming up next. Built client-side from the board/list endpoints, so it
+// works against any API version that serves those.
+const ACTIVITY_USAGE = 'Usage: taskitty activity [--days N | --from YYYY-MM-DD [--to YYYY-MM-DD]] [--boards id,id] [--upcoming-days N]\n' +
+  '            --days N: the last N days including today (default 7; 1 = today, 2 = yesterday and today)\n' +
+  '            --from/--to: inclusive local dates; --to defaults to today\n' +
+  '            --upcoming-days N: also list start/due dates in the next N days after the range (default 7, 0 = off)';
+
+function localDayKey(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function parseLocalDay(text, flag) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(text || '').trim());
+  if (!m) fail(`${ACTIVITY_USAGE}\n${flag} must be YYYY-MM-DD`);
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (localDayKey(d) !== m[0]) fail(`${ACTIVITY_USAGE}\n${flag} is not a real date: ${m[0]}`);
+  return d;
+}
+
+function addDays(date, days) { const d = new Date(date); d.setDate(d.getDate() + days); return d; }
+
+function parseActivityArgs(args) {
+  const opts = { days: null, from: null, to: null, boards: null, upcomingDays: 7 };
+  const positiveInt = (value, flag, allowZero = false) => {
+    const n = Number(value);
+    if (!Number.isInteger(n) || n < (allowZero ? 0 : 1)) fail(`${ACTIVITY_USAGE}\n${flag} must be a ${allowZero ? 'non-negative' : 'positive'} integer`);
+    return n;
+  };
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === '--days') opts.days = positiveInt(args[++i], '--days');
+    else if (a === '--from') opts.from = parseLocalDay(args[++i], '--from');
+    else if (a === '--to') opts.to = parseLocalDay(args[++i], '--to');
+    else if (a === '--boards') opts.boards = String(args[++i] ?? '').split(',').map((s) => positiveInt(s.trim(), '--boards'));
+    else if (a === '--upcoming-days') opts.upcomingDays = positiveInt(args[++i], '--upcoming-days', true);
+    else fail(`${ACTIVITY_USAGE}\nUnknown argument: ${a}`);
+  }
+  if (opts.days !== null && (opts.from || opts.to)) fail(`${ACTIVITY_USAGE}\nuse either --days or --from/--to, not both`);
+  const today = parseLocalDay(localDayKey(new Date()), 'today');
+  const to = opts.to || today;
+  const from = opts.from || addDays(to, -((opts.days ?? 7) - 1));
+  if (from > to) fail(`${ACTIVITY_USAGE}\n--from is after --to`);
+  return { from: localDayKey(from), to: localDayKey(to), upcomingTo: localDayKey(addDays(to, opts.upcomingDays)), upcomingDays: opts.upcomingDays, boards: opts.boards };
+}
+
+async function collectWorkspaceTasks(boardFilter) {
+  const boards = (await api('POST', '/v1/boards', {})) || [];
+  const selected = boardFilter ? boards.filter((b) => boardFilter.includes(b.id)) : boards;
+  if (boardFilter) for (const id of boardFilter) if (!boards.some((b) => b.id === id)) fail(`activity: board ${id} does not exist in this workspace`);
+  const tasks = [];
+  for (const b of selected) {
+    const board = await api('POST', `/v1/boards/${b.id}`, {});
+    for (const list of board.lists || []) {
+      const page = await api('POST', `/v1/lists/${list.id}/tasks`, {});
+      for (const t of page.tasks || []) tasks.push({ ...t, boardName: board.name, listName: list.name });
+    }
+  }
+  return tasks;
+}
+
+function activityEvents(task, range) {
+  // One task can show up under several days and kinds; a task's last activity is only
+  // reported on a day it was not already added or finished, so a day reads as real work.
+  const events = [];
+  const push = (kind, value) => { const day = localDayKey(value); if (day && day >= range.from && day <= range.upcomingTo) events.push({ day, kind, at: value }); };
+  if (task.done_datetime) push('done', task.done_datetime);
+  if (task.added_datetime) push('added', task.added_datetime);
+  if (task.start_datetime && !task.done) push('starts', task.start_datetime);
+  if (task.due_datetime && !task.done) push('due', task.due_datetime);
+  if (task.last_activity_datetime) {
+    const day = localDayKey(task.last_activity_datetime);
+    if (day && !events.some((e) => e.day === day && (e.kind === 'done' || e.kind === 'added'))) push('worked on', task.last_activity_datetime);
+  }
+  // Past-range days only get past events; days after the range only get scheduled ones.
+  return events.filter((e) => e.day <= range.to || e.kind === 'starts' || e.kind === 'due');
+}
+
+async function cmdActivity(args) {
+  const range = parseActivityArgs(args);
+  const tasks = await collectWorkspaceTasks(range.boards);
+  const byDay = new Map();
+  for (const task of tasks) {
+    for (const e of activityEvents(task, range)) {
+      if (!byDay.has(e.day)) byDay.set(e.day, []);
+      byDay.get(e.day).push({ ...e, task });
+    }
+  }
+  const order = ['done', 'worked on', 'added', 'starts', 'due'];
+  const time = (iso) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? '' : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+  const weekday = (day) => parseLocalDay(day, 'day').toLocaleDateString('en-GB', { weekday: 'short' });
+  const today = localDayKey(new Date());
+  const label = (day) => (day === today ? ' (today)' : day === localDayKey(addDays(parseLocalDay(today, 'today'), -1)) ? ' (yesterday)' : '');
+  const render = (days) => {
+    for (const day of days) {
+      console.log(`\n## ${day} ${weekday(day)}${label(day)}`);
+      const events = byDay.get(day).sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || String(a.at).localeCompare(String(b.at)));
+      for (const kind of order) {
+        const group = events.filter((e) => e.kind === kind);
+        if (!group.length) continue;
+        console.log(`${kind} (${group.length}):`);
+        for (const e of group) {
+          const t = e.task;
+          const state = t.done ? 'done' : t.doing ? 'doing' : t.on_hold ? 'on hold' : t.listName;
+          console.log(`  ${time(e.at)}  #${t.id} ${excerpt(t.name, 140)}  [${t.boardName} / ${state}]`);
+        }
+      }
+    }
+  };
+  const days = [...byDay.keys()].sort();
+  const past = days.filter((d) => d <= range.to);
+  const upcoming = days.filter((d) => d > range.to);
+  const boardsNote = range.boards ? ` boards ${range.boards.join(',')}` : ' all boards';
+  console.log(`# Activity ${range.from} to ${range.to} (local time,${boardsNote}, ${tasks.length} tasks scanned)`);
+  const count = (kind) => past.reduce((n, d) => n + byDay.get(d).filter((e) => e.kind === kind).length, 0);
+  console.log(`Summary: ${count('done')} done, ${count('worked on')} worked on, ${count('added')} added, ${count('starts') + count('due')} scheduled`);
+  if (!past.length) console.log('\nNo activity in this range.');
+  render(past);
+  const overdue = tasks.filter((t) => !t.done && t.due_datetime && localDayKey(t.due_datetime) && localDayKey(t.due_datetime) < today)
+    .sort((a, b) => String(a.due_datetime).localeCompare(String(b.due_datetime)));
+  if (overdue.length) {
+    console.log(`
+# Overdue (${overdue.length}, not done)`);
+    for (const t of overdue) console.log(`  due ${localDayKey(t.due_datetime)}  #${t.id} ${excerpt(t.name, 140)}  [${t.boardName} / ${t.listName}]`);
+  }
+  if (range.upcomingDays > 0) {
+    console.log(`\n# Upcoming (next ${range.upcomingDays} days, until ${range.upcomingTo})`);
+    if (!upcoming.length) console.log('Nothing scheduled.');
+    render(upcoming);
+  }
+}
+
 async function cmdDeleteMarkdown(args) {
   const usage = 'Usage: taskitty delete-markdown ["<board_id>"] [--out <path>]\n' +
     'Deletes all markdown export files for the specified board, or all boards if no board_id is given.\n' +
@@ -1099,6 +1236,7 @@ switch (action) {
   case 'release': run(() => cmdRelease(rest)); break;
   case 'version': run(() => cmdVersion(rest)); break;
   case 'agent-context': run(cmdAgentContext); break;
+  case 'activity': run(() => cmdActivity(rest)); break;
   case 'delete-markdown': run(() => cmdDeleteMarkdown(rest)); break;
   default:
     console.log(`Taskitty API CLI - endpoint ${API_URL} (override with TASKITTY_API_URL)`);
@@ -1123,6 +1261,8 @@ switch (action) {
     console.log('Export    : export-markdown <board_id> [--scope board|list|task] [--format lists|single] [--list-id N|--task-id N] [--max-age-days N|--limit N|--clean] [--out file.md|dir/]');
     console.log('            filters like the GUI: --tags id,id --members id,id --milestones id,id --versions v1,v2 --due any|overdue|today --hide-hidden');
     console.log('Reports   : report-text <progress|changelog|roadmap> [--boards id,id] [--tags name,name] [--versions v1,v2] [--from-date YYYY-MM-DD] [--to-date YYYY-MM-DD]');
+    console.log('Activity  : activity [--days N | --from YYYY-MM-DD [--to YYYY-MM-DD]] [--boards id,id] [--upcoming-days N]');
+    console.log('            calendar view by local day: done, worked on, added, starts/due, then upcoming and overdue');
     console.log('Context   : agent-context prints SOUL.md, USER.md and the workspace project prompt (read it first)');
     console.log('Releases  : version [X.Y.Z] shows or sets the workspace version | release [--version X.Y.Z] [--board id] [--tasks id,id] [--date ISO] [--dry-run]');
     console.log('            release stamps every done, unreleased task with a released date and the version it shipped in');

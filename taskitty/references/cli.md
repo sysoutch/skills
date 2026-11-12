@@ -286,6 +286,17 @@ taskitty agent-context                # SOUL.md + USER.md + this workspace's pro
 
 Read it first in every session. API: `POST /v1/agent-context {workspace?}` returns `markdown`, `soul_md`, `user_md`, `project_prompt`, `soul_path`, `user_path`. MCP: `taskitty_agent_context`. Offline, the CLI prints the global files from `%APPDATA%\taskitty\agent-context\` without the project prompt.
 
+### Activity (calendar view)
+
+```sh
+taskitty activity                         # last 7 days incl. today, then overdue and the next 7 days
+taskitty activity --days 2                # yesterday and today
+taskitty activity --from 2026-11-01 --to 2026-11-07 --upcoming-days 0
+taskitty activity --boards 3,10           # only these boards
+```
+
+Groups tasks by local day: `done` (done_datetime), `worked on` (last_activity_datetime, only on days the task was not added or finished), `added` (added_datetime) and `starts`/`due` for open tasks. Then an Overdue section (open tasks due before today) and Upcoming. Read-only; built from `POST /v1/boards`, `/v1/boards/{id}` and `/v1/lists/{id}/tasks`, so it needs no API change. MCP: `taskitty_activity`.
+
 ## Reporting
 
 Always report Taskitty IDs together with human-readable names.

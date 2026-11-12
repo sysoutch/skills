@@ -109,6 +109,10 @@ When the requested work is implemented and verified to the appropriate boundary,
 
 Never use raw HTTP, browser automation, Playwright, destructive deletes, or a made-up command for Taskitty. Use only registered workspaces.
 
+## Recent work (calendar view)
+
+When the user asks what they worked on (yesterday, this week, on a given day) or what's coming up, call `taskitty_activity`. It lists tasks by local day: done, worked on, added and scheduled (start/due), then overdue and upcoming ones. `days: 2` means yesterday and today; `from`/`to` take `YYYY-MM-DD`. Call it once per workspace (every `taskitty.json` in reach) to see work across projects, and answer from its output instead of guessing. CLI: `activity [--days N | --from D --to D] [--boards id,id] [--upcoming-days N]`.
+
 ## Releases and versions
 
 Each workspace keeps a release version (MAJOR.MINOR.PATCH, default 0.1.0). Keep it equal to the project's own version: read it with `taskitty_version` and set it with `taskitty_version` + `version` whenever the project's version changes (CLI: `version [X.Y.Z]`).
