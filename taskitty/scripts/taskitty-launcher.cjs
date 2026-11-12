@@ -898,6 +898,61 @@ async function cmdAgentContext() {
   ].join('\n'));
 }
 
+// Rewrites one agent context document, or appends a note to it: `user` (USER.md), `soul` (SOUL.md) or `project`
+// (the workspace's system prompt). The text comes from --file (what the MCP server uses, so long documents never hit
+// the command-line limit) or --text. Without a reachable API that knows the endpoint, USER.md and SOUL.md are
+// written straight to the files on disk, the same files the read fallback reads; the project prompt needs the API.
+const AGENT_CONTEXT_TARGETS = ['user', 'soul', 'project'];
+const AGENT_CONTEXT_FILES = { user: 'USER.md', soul: 'SOUL.md' };
+const AGENT_CONTEXT_MAX_BYTES = 64 * 1024;
+const AGENT_CONTEXT_UPDATE_USAGE = 'Usage: taskitty agent-context-update <user|soul|project> (--file <path> | --text <text>) [--append]\n' +
+  '            replaces the whole document, or with --append adds the text as a bullet under "## Notes"';
+
+// The same note format as the desktop app's (agent_context.rs append_note).
+function appendAgentNote(document, note) {
+  let out = document.replace(/\s+$/, '');
+  if (!out.split('\n').some((line) => line.trim() === '## Notes')) out += (out ? '\n\n' : '') + '## Notes\n';
+  return `${out}\n- ${note.trim().replace(/\n/g, ' ')}\n`;
+}
+
+async function cmdAgentContextUpdate(args) {
+  const target = String(args[0] || '').trim().toLowerCase();
+  if (!AGENT_CONTEXT_TARGETS.includes(target)) fail(AGENT_CONTEXT_UPDATE_USAGE);
+  let text = null, append = false;
+  for (let i = 1; i < args.length; i++) {
+    if (args[i] === '--append') append = true;
+    else if (args[i] === '--file' && args[i + 1] !== undefined) text = fs.readFileSync(args[++i], 'utf8');
+    else if (args[i] === '--text' && args[i + 1] !== undefined) text = args[++i];
+    else fail(AGENT_CONTEXT_UPDATE_USAGE);
+  }
+  if (text === null) fail(AGENT_CONTEXT_UPDATE_USAGE);
+  if (append && !text.trim()) fail('agent-context-update: the note is empty');
+  if (Buffer.byteLength(text, 'utf8') > AGENT_CONTEXT_MAX_BYTES) fail(`agent-context-update: text is longer than ${AGENT_CONTEXT_MAX_BYTES / 1024} KB`);
+  const body = { target, content: text, mode: append ? 'append' : 'replace' };
+  const workspace = resolveWorkspace();
+  if (workspace) body.workspace = workspace;
+  if (typeof fetch === 'function' && (await portOpen())) {
+    let res = null;
+    try {
+      res = await fetch(`${API_URL}/v1/agent-context/update`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${readToken()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    } catch (e) { /* fall through to the files on disk */ }
+    if (res && res.ok) { const r = await res.json(); console.log(`Saved ${target} agent context (${r.bytes} bytes${append ? ', note appended' : ''}).`); return; }
+    if (res && res.status !== 404) fail(`POST /v1/agent-context/update failed: HTTP ${res.status} ${(await res.text()).trim()}`);
+  }
+  if (target === 'project') fail('agent-context-update project: needs a running Taskitty app that knows /v1/agent-context/update (the project prompt lives in the workspace database).');
+  const dir = path.join((process.env.TASKITTY_DATA_DIR || '').trim() || dataDir(), 'agent-context');
+  const file = path.join(dir, AGENT_CONTEXT_FILES[target]);
+  const current = (() => { try { return fs.readFileSync(file, 'utf8'); } catch { return ''; } })();
+  const next = append ? appendAgentNote(current, text) : (text.trim() ? `${text.trim()}\n` : '');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(file, next, 'utf8');
+  console.log(`Saved ${target} agent context to ${file} (${Buffer.byteLength(next, 'utf8')} bytes${append ? ', note appended' : ''}; written on disk, the API was not reachable or too old).`);
+}
+
 // --- Activity (calendar view) -------------------------------------------------
 // Groups every task in the workspace by local calendar day: what was finished,
 // added, worked on (last activity) and scheduled (start/due) in the range, plus
@@ -1236,6 +1291,7 @@ switch (action) {
   case 'release': run(() => cmdRelease(rest)); break;
   case 'version': run(() => cmdVersion(rest)); break;
   case 'agent-context': run(cmdAgentContext); break;
+  case 'agent-context-update': run(() => cmdAgentContextUpdate(rest)); break;
   case 'activity': run(() => cmdActivity(rest)); break;
   case 'delete-markdown': run(() => cmdDeleteMarkdown(rest)); break;
   default:
@@ -1264,6 +1320,7 @@ switch (action) {
     console.log('Activity  : activity [--days N | --from YYYY-MM-DD [--to YYYY-MM-DD]] [--boards id,id] [--upcoming-days N]');
     console.log('            calendar view by local day: done, worked on, added, starts/due, then upcoming and overdue');
     console.log('Context   : agent-context prints SOUL.md, USER.md and the workspace project prompt (read it first)');
+    console.log('            agent-context-update <user|soul|project> (--file <path> | --text <text>) [--append] rewrites one, or adds a note');
     console.log('Releases  : version [X.Y.Z] shows or sets the workspace version | release [--version X.Y.Z] [--board id] [--tasks id,id] [--date ISO] [--dry-run]');
     console.log('            release stamps every done, unreleased task with a released date and the version it shipped in');
     console.log('Workspaces: workspace-groups | create-workspace "name" [--group-id N | --group-alias X]');

@@ -17,7 +17,10 @@ At the start of every session in a project with a `taskitty.json`, before anythi
 On conflicts the project prompt wins, then USER.md, then SOUL.md. The user writes these in the desktop app
 (first-start interview, or the rail's Agent context button). Without MCP, run the CLI `agent-context`, or read
 `%APPDATA%\taskitty\agent-context\SOUL.md` and `USER.md` directly (the project prompt lives in the workspace
-database). Never write secrets into these files.
+database). When the user asks you to change or remember something in them, use
+`taskitty_update_agent_context` (`target` user, soul or project; `mode` replace sends the whole rewritten document,
+append adds one note under `## Notes`). CLI: `agent-context-update <user|soul|project> (--file F | --text T) [--append]`.
+Never write secrets into these files.
 
 ## The rule
 
