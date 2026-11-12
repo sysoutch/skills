@@ -71,7 +71,9 @@ const tools = [
 function requireText(value, label) { if (typeof value !== "string" || !value.trim()) throw new Error(`${label} is required.`); return value.trim(); }
 function optionalText(value, label) { return value === undefined ? undefined : requireText(value, label); }
 function positive(value, label) { const result = Number(value); if (!Number.isInteger(result) || result <= 0) throw new Error(`${label} must be a positive integer.`); return String(result); }
-function workspaceArgs(value) { return ["--workspace", requireText(value, "workspace")]; }
+// Registry-level tools (health, workspace groups/creation) pass NO_WORKSPACE; every other call must name one.
+const NO_WORKSPACE = Symbol("no workspace");
+function workspaceArgs(value) { return value === NO_WORKSPACE ? [] : ["--workspace", requireText(value, "workspace")]; }
 function isInside(directory, parent) {
   const relative = path.relative(parent, directory);
   return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
@@ -195,7 +197,7 @@ async function call(name, args = {}) {
     case "taskitty_start_work": return startWork(args);
     case "taskitty_finish_work": return finishWork(args);
     case "taskitty_capture": return capture(args);
-    case "taskitty_health": return runCli("health", [], args.workspace);
+    case "taskitty_health": return runCli("health", [], NO_WORKSPACE);
     case "taskitty_list_boards": return runCli("boards", [], args.workspace);
     case "taskitty_get_board": return runCli("board", [positive(args.boardId, "boardId")], args.workspace);
     case "taskitty_list_tasks": return runCli("list-tasks", [positive(args.listId, "listId")], args.workspace);
@@ -295,18 +297,18 @@ async function call(name, args = {}) {
       return runCli("report-text", cliArgs, args.workspace);
     }
 
-    case "taskitty_list_workspace_groups": return runCli("workspace-groups", []);
+    case "taskitty_list_workspace_groups": return runCli("workspace-groups", [], NO_WORKSPACE);
     case "taskitty_create_workspace": {
       const cliArgs = [requireText(args.name, "name")];
       if (args.groupId !== undefined) cliArgs.push("--group-id", positive(args.groupId, "groupId"));
       if (args.groupAlias !== undefined) cliArgs.push("--group-alias", requireText(args.groupAlias, "groupAlias"));
-      return runCli("create-workspace", cliArgs);
+      return runCli("create-workspace", cliArgs, NO_WORKSPACE);
     }
     case "taskitty_create_workspace_group": {
       const cliArgs = [requireText(args.name, "name")];
       if (args.parentId !== undefined) cliArgs.push("--parent-id", positive(args.parentId, "parentId"));
       if (args.parentAlias !== undefined) cliArgs.push("--parent-alias", requireText(args.parentAlias, "parentAlias"));
-      return runCli("create-group", cliArgs);
+      return runCli("create-group", cliArgs, NO_WORKSPACE);
     }
     case "blog_health": return runBlog("health", []);
     case "blog_status": return runBlog("status", []);
