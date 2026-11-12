@@ -278,6 +278,14 @@ taskitty release --tasks 12,14        # only these tasks (still only if they're 
 
 API: `POST /v1/workspace/version {version?}` and `POST /v1/release {version?, board_id?, task_ids?, released_datetime?, dry_run?}`; both take the usual `workspace` field. MCP: `taskitty_version`, `taskitty_release`.
 
+### Agent context
+
+```sh
+taskitty agent-context                # SOUL.md + USER.md + this workspace's project prompt, as one Markdown document
+```
+
+Read it first in every session. API: `POST /v1/agent-context {workspace?}` returns `markdown`, `soul_md`, `user_md`, `project_prompt`, `soul_path`, `user_path`. MCP: `taskitty_agent_context`. Offline, the CLI prints the global files from `%APPDATA%\taskitty\agent-context\` without the project prompt.
+
 ## Reporting
 
 Always report Taskitty IDs together with human-readable names.

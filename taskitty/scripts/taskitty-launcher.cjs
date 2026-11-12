@@ -868,6 +868,36 @@ async function cmdVersion(args) {
   console.log(`${version === undefined ? 'Workspace version' : 'Workspace version set to'} ${r.version}`);
 }
 
+// Prints the agent context every agent reads first: global SOUL.md and USER.md plus the
+// workspace's project system prompt. Falls back to the global files on disk when the API is
+// not reachable (or too old to know the endpoint); the project prompt then stays unknown.
+async function cmdAgentContext() {
+  const body = {};
+  const workspace = resolveWorkspace();
+  if (workspace) body.workspace = workspace;
+  if (typeof fetch === 'function' && (await portOpen())) {
+    try {
+      const res = await fetch(`${API_URL}/v1/agent-context`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${readToken()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) { console.log((await res.json()).markdown); return; }
+      if (res.status !== 404) fail(`POST /v1/agent-context failed: HTTP ${res.status} ${(await res.text()).trim()}`);
+    } catch (e) { /* fall through to the files on disk */ }
+  }
+  const base = (process.env.TASKITTY_DATA_DIR || '').trim() || dataDir();
+  const dir = path.join(base, 'agent-context');
+  const read = (name) => { try { return fs.readFileSync(path.join(dir, name), 'utf8').trim(); } catch { return ''; } };
+  const section = (title, text, empty) => `## ${title}\n\n${text || empty}\n`;
+  console.log([
+    '# Agent context\n\nRead and follow this before doing anything else. Where sections conflict, the project system prompt wins, then USER.md, then SOUL.md.\n',
+    section('SOUL.md', read('SOUL.md'), '_Not written yet._'),
+    section('USER.md', read('USER.md'), '_Not written yet._'),
+    section('Project system prompt', '', '_Unavailable: the Taskitty API is not reachable or too old, so the workspace prompt could not be read._'),
+  ].join('\n'));
+}
+
 async function cmdDeleteMarkdown(args) {
   const usage = 'Usage: taskitty delete-markdown ["<board_id>"] [--out <path>]\n' +
     'Deletes all markdown export files for the specified board, or all boards if no board_id is given.\n' +
@@ -1068,6 +1098,7 @@ switch (action) {
   case 'report-text': run(() => cmdReportText(rest)); break;
   case 'release': run(() => cmdRelease(rest)); break;
   case 'version': run(() => cmdVersion(rest)); break;
+  case 'agent-context': run(cmdAgentContext); break;
   case 'delete-markdown': run(() => cmdDeleteMarkdown(rest)); break;
   default:
     console.log(`Taskitty API CLI - endpoint ${API_URL} (override with TASKITTY_API_URL)`);
@@ -1092,6 +1123,7 @@ switch (action) {
     console.log('Export    : export-markdown <board_id> [--scope board|list|task] [--format lists|single] [--list-id N|--task-id N] [--max-age-days N|--limit N|--clean] [--out file.md|dir/]');
     console.log('            filters like the GUI: --tags id,id --members id,id --milestones id,id --versions v1,v2 --due any|overdue|today --hide-hidden');
     console.log('Reports   : report-text <progress|changelog|roadmap> [--boards id,id] [--tags name,name] [--versions v1,v2] [--from-date YYYY-MM-DD] [--to-date YYYY-MM-DD]');
+    console.log('Context   : agent-context prints SOUL.md, USER.md and the workspace project prompt (read it first)');
     console.log('Releases  : version [X.Y.Z] shows or sets the workspace version | release [--version X.Y.Z] [--board id] [--tasks id,id] [--date ISO] [--dry-run]');
     console.log('            release stamps every done, unreleased task with a released date and the version it shipped in');
     console.log('Workspaces: workspace-groups | create-workspace "name" [--group-id N | --group-alias X]');

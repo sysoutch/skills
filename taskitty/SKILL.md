@@ -5,6 +5,20 @@ description: Use the Taskitty MCP server to inspect and update local Taskitty bo
 
 # Taskitty
 
+## Read first: agent context (SOUL, USER, project)
+
+At the start of every session in a project with a `taskitty.json`, before anything else, call
+`taskitty_agent_context` with that config's `databasePath` and follow the result for the whole session:
+
+- **SOUL.md**: how you behave and sound, your working principles (all projects).
+- **USER.md**: who the user is, their projects, stack and how they want answers (all projects).
+- **Project system prompt**: extra rules for this one workspace.
+
+On conflicts the project prompt wins, then USER.md, then SOUL.md. The user writes these in the desktop app
+(first-start interview, or the rail's Agent context button). Without MCP, run the CLI `agent-context`, or read
+`%APPDATA%\taskitty\agent-context\SOUL.md` and `USER.md` directly (the project prompt lives in the workspace
+database). Never write secrets into these files.
+
 ## The rule
 
 In any project with a `taskitty.json`, every request that changes files gets a task, in real time:
