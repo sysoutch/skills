@@ -17,7 +17,24 @@ Use the configured `uragenow` MCP server first. It exposes the live media API, s
 
 Do not use browser automation or Playwright for URageNow. For a named tool, call its exact MCP tool or `urage_invoke_tool`; never substitute generic image generation. For a self-contained HTML page, use `urage_split_html_document`, download the three returned artifacts to the tool folder, and verify the resulting relative links before replacing the source page. A successful generation returns the artifact fields needed for download. For 3D from a generated image, pass only its returned `id` and `imageFileName` to `urage_generate_model3d_from_image`; it retrieves the source bytes internally. The source image is authoritative: do not include a text prompt or a relative download URL as `imageInput`. Do not infer 3D generation from an image request.
 
-For a lighter, game-ready mesh that keeps the model's own look and texture, **remesh** it: URageNow's `blender-scripts/remesh/QuadRemesher_remesh.py` (`--filepath`, `--quad_count`, default 2500, `--adaptive_size`, `--symmetry_x/y/z`) or `QuadriFlow_remesh.py`, run with Blender in background mode as `blender-scripts/README.md` describes. There is no API or MCP tool for remeshing yet.
+For a lighter, game-ready mesh that keeps the model's own look and texture, **remesh** it with `urage_remesh_model` (the Studio's Remesh quick action, `POST /api/model3d-remesh`). Blender rebuilds the topology to `targetFaces` (default 5000), unwraps UVs and bakes the original base colour plus a normal map onto the new mesh. The result is a **new** model entry (the source is untouched); download its `generated.modelFileName` with `urage_download_artifact` (kind `model3d`). Methods: `quadriflow` (default, clean quads, headless), `voxel` (robust on broken meshes, approximate count, headless), `quadremesher` (needs the Exoside Quad Remesher add-on and briefly opens a Blender window). The script is `blender-scripts/remesh/remesh_model.py` in the URageNow repo.
+
+## 3D quick actions
+
+Find a model id with `urage_list_models`, then run any 3D Studio quick action with `urage_model3d_quick_action` (`modelId`, `action`, optional `options` passed to the endpoint):
+
+| action | What it does | Result |
+|---|---|---|
+| `remesh` | Lighter mesh that keeps its look (see above) | new model |
+| `lowpoly` | Deliberate low-poly, palette-painted look | `lowPolyModelFileName` on the same model |
+| `separate_loose_parts` | One model per loose part (`exportMode: "single_file"` keeps one file) | new models |
+| `albedo_to_geometry` | Displace the mesh from its albedo brightness | `albedoGeometryModelFileName` |
+| `real_life_scale` | LLM estimates the real height and scales the model | updated model |
+| `delight` / `rotate` | Flat-lit capture / turntable capture | new image (kind `image`) |
+| `generate_lods` | LODs from `targetFaceCounts` | `lodArtifacts` |
+| `autorig` | Auto-rig (`rigProfile`: `auto`, `human`, `quadruped`) | updated model |
+
+Blender actions can take minutes; call once and wait, never resend to poll.
 
 Use `urage_generate_lowpoly_model` (the Studio's Create Lowpoly button) **only for a deliberate low-poly look**: it decimates to a target face count and paints every face from a small colour-palette UV texture (the LowPolyUV add-on), so the original texture detail is gone. Pass the generated model's `id` and a `targetFaces` count (or `llmTargetFaces: true` to let the server choose), then download the returned `lowPolyModelFileName` with `urage_download_artifact` (kind `model3d`). Over HTTP it is `POST /api/model3d-lowpoly-generate`, which the manifest does not list.
 
