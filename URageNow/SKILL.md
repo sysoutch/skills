@@ -17,7 +17,9 @@ Use the configured `uragenow` MCP server first. It exposes the live media API, s
 
 Do not use browser automation or Playwright for URageNow. For a named tool, call its exact MCP tool or `urage_invoke_tool`; never substitute generic image generation. For a self-contained HTML page, use `urage_split_html_document`, download the three returned artifacts to the tool folder, and verify the resulting relative links before replacing the source page. A successful generation returns the artifact fields needed for download. For 3D from a generated image, pass only its returned `id` and `imageFileName` to `urage_generate_model3d_from_image`; it retrieves the source bytes internally. The source image is authoritative: do not include a text prompt or a relative download URL as `imageInput`. Do not infer 3D generation from an image request.
 
-For a lighter, game-ready mesh that keeps the model's own look and texture, **remesh** it with `urage_remesh_model` (the Studio's Remesh quick action, `POST /api/model3d-remesh`). Blender rebuilds the topology to `targetFaces` (default 5000), unwraps UVs and bakes the original base colour plus a normal map onto the new mesh. The result is a **new** model entry (the source is untouched); download its `generated.modelFileName` with `urage_download_artifact` (kind `model3d`). Methods: `quadriflow` (default, clean quads, headless), `voxel` (robust on broken meshes, approximate count, headless), `quadremesher` (needs the Exoside Quad Remesher add-on and briefly opens a Blender window). The script is `blender-scripts/remesh/remesh_model.py` in the URageNow repo.
+For a lighter, game-ready mesh that keeps the model's own look and texture, **remesh** it with `urage_remesh_model` (the Studio's Remesh quick action, `POST /api/model3d-remesh`). Blender rebuilds the topology to `targetFaces` (default 5000), unwraps UVs and bakes the original base colour plus a normal map onto the new mesh. The result is a **new** model entry (the source is untouched); download its `generated.modelFileName` with `urage_download_artifact` (kind `model3d`). Methods: `quadriflow` (default, clean quads, headless), `voxel` (robust on broken meshes, approximate count, headless), `quadremesher` (needs the Exoside Quad Remesher add-on and briefly opens a Blender window). Pick the baker with `bakeEngine`: `builtin` (Blender Cycles, default) or `bakelab` (the BakeLab2 add-on; opens a Blender window), and the maps with `bakeMaps`. The script is `blender-scripts/remesh/remesh_model.py` in the URageNow repo.
+
+To **bake** a texture set without remeshing, use `urage_bake_model` (the Studio's Bake quick action, `POST /api/model3d-bake`): without `sourceModelId` it flattens the model's own materials into one PBR material; with `sourceModelId` it bakes that high-poly model onto this one (for example onto a remeshed or hand-made low-poly copy). Maps: `albedo`, `normal`, `roughness`, `metallic` (built-in only), `ao` (multiplied into albedo), `emission`. The result is a new model entry. The script is `blender-scripts/bake/bake_maps.py`.
 
 ## 3D quick actions
 
@@ -26,6 +28,7 @@ Find a model id with `urage_list_models`, then run any 3D Studio quick action wi
 | action | What it does | Result |
 |---|---|---|
 | `remesh` | Lighter mesh that keeps its look (see above) | new model |
+| `bake` | PBR texture set from own materials or a `sourceModelId` | new model |
 | `lowpoly` | Deliberate low-poly, palette-painted look | `lowPolyModelFileName` on the same model |
 | `separate_loose_parts` | One model per loose part (`exportMode: "single_file"` keeps one file) | new models |
 | `albedo_to_geometry` | Displace the mesh from its albedo brightness | `albedoGeometryModelFileName` |
