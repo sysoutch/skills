@@ -28,9 +28,10 @@ In any project with a `taskitty.json`, every request that changes files gets a t
 
 1. **Before the first edit:** `taskitty_start_work`.
 2. **A new request arrives mid-task:** `taskitty_capture`, straight away.
-3. **When it's verified:** `taskitty_finish_work`, saying what was tested and what wasn't. Never log work in a batch afterwards.
+3. **When it's verified:** `taskitty_finish_work`, saying what was tested and what wasn't. Never log work in a batch afterwards. A real human decision goes to **Under Review** instead.
+4. **At the end of the session:** only tasks someone is really working on stay in **Doing**. Every task you leave there that you can't finish and that needs no human decision goes back to the backlog: its priority list (High/Normal/Low Priority) or the board's Backlog list (`taskitty_move_task`, then `taskitty_set_task_state` `not_doing`), with a comment saying where it stands. That way nothing gets forgotten in Doing.
 
-A real human decision goes to **Under Review** instead. If these tools are deferred, load them with ToolSearch. The `taskitty-guard` hooks in `~/.claude/settings.json` enforce this: a turn that changes files without touching the board is sent back once.
+If these tools are deferred, load them with ToolSearch. The `taskitty-guard` hooks in `~/.claude/settings.json` enforce this: a turn that changes files without touching the board is sent back once.
 
 ## Combined default workflow
 
@@ -48,7 +49,8 @@ board export; use MCP with that config's `databasePath` on every
 workspace-scoped call; inspect the board/task; transition an implementation
 task to `doing`; implement and verify; add a factual progress comment and
 reflection; then either mark it `done` or use **Under Review** for a genuine
-human decision. Do not use the CLI merely because it is more convenient: it is
+human decision. At session end, move anything unfinished you leave in Doing back
+to its priority list (or Backlog). Do not use the CLI merely because it is more convenient: it is
 only the MCP-unavailable fallback.
 
 ## Skill location
