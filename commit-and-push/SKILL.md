@@ -1,6 +1,6 @@
 ---
 name: commit-and-push
-description: Create a professional Git commit using commit-changes.md, then push it to the current branch.
+description: Create a professional Git commit using the commit-changes skill, then push it to the current branch.
 ---
 
 # Commit and Push
@@ -13,9 +13,9 @@ Use this skill whenever the user asks to:
 - push changes
 - publish changes
 
-This skill extends `commit-changes.md`.
+This skill extends the `commit-changes` skill (`../commit-changes/SKILL.md`).
 
-Follow `commit-changes.md` first for reviewing changes, validating quality, creating the commit, and reporting the commit details.
+Follow the `commit-changes` skill (`../commit-changes/SKILL.md`) first for reviewing changes, validating quality, creating the commit, and reporting the commit details.
 
 ## Additional Steps
 
@@ -31,7 +31,7 @@ Do not force-push unless the user explicitly requests it.
 
 ## Final Report
 
-In addition to the report required by `commit-changes.md`, report:
+In addition to the report required by the `commit-changes` skill (`../commit-changes/SKILL.md`), report:
 
 - Whether the changes were pushed successfully.
 - The remote branch that received the commit.
