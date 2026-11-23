@@ -118,6 +118,17 @@ Never use raw HTTP, browser automation, Playwright, destructive deletes, or a ma
 
 When the user asks what they worked on (yesterday, this week, on a given day) or what's coming up, call `taskitty_activity`. It lists tasks by local day: done, worked on, added and scheduled (start/due), then overdue and upcoming ones. `days: 2` means yesterday and today; `from`/`to` take `YYYY-MM-DD`. Call it once per workspace (every `taskitty.json` in reach) to see work across projects, and answer from its output instead of guessing. CLI: `activity [--days N | --from D --to D] [--boards id,id] [--upcoming-days N]`.
 
+## Task links and graph
+
+Tasks can be linked explicitly: `blocks` (from blocks to), `parent` (from is the parent of to; one parent per task),
+`related` (no direction) and `follow_up` (from is a follow-up of to; reflections write these for every task they
+create). When you learn that one task blocks, belongs under or relates to another, record it with
+`taskitty_link_tasks`; read a task's links and `#tk:task` mentions with `taskitty_list_task_links`, remove one with
+`taskitty_unlink_tasks`. Refused links (self, missing task, duplicate, second parent, parent/blocks loop) come back
+with the reason. The desktop **Connections** view draws all of it. `taskitty_export_graph` writes the workspace graph
+as a Graphify-compatible `graph.json` into the project's `graphify-out/` folder (done tasks left out unless
+`includeDone`). CLI: `links <task_id>`, `link <from> <to> <kind>`, `unlink <link_id>`, `graph-export [--out file]`.
+
 ## Releases and versions
 
 Each workspace keeps a release version (MAJOR.MINOR.PATCH, default 0.1.0). Keep it equal to the project's own version: read it with `taskitty_version` and set it with `taskitty_version` + `version` whenever the project's version changes (CLI: `version [X.Y.Z]`).

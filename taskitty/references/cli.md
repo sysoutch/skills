@@ -160,6 +160,21 @@ taskitty.ps1 project-config -Replace -AuthorId 4 -AuthorName "Agent"
 
 See `workspace.md` for configuration behavior.
 
+## Task links and graph
+
+links <task_id>                                   explicit links (with link ids) plus #tk:task mentions
+link <from_id> <to_id> <blocks|related|parent|follow_up>
+unlink <link_id>
+graph-export [--boards id,id] [--tags id,id] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--include-done] [--linked-only] [--max-nodes N] [--format graphify|taskitty] [--out graphify-out/graph.json]
+
+`blocks`: from blocks to. `parent`: from is the parent of to (one parent per task, no loops). `related` has no
+direction. `follow_up`: from is a follow-up of to (reflections write these automatically).
+
+`graph-export` writes a Graphify-compatible node-link `graph.json` (default) or the raw Taskitty graph. Every Taskitty
+item is a `document` node with `taskitty_kind`; relations are `references`, `blocks`, `related_to`, `parent_of`,
+`follow_up_of`, `tagged`, `in_milestone`, `assigned_to` and `on_board`. Done tasks are left out unless
+`--include-done`; `--linked-only` keeps only tasks with a reference or link. PowerShell: `links`, `link`, `unlink`, and `graph-export [-Out file]` (no filters).
+
 ## Markdown export
 
 export-markdown <board_id> [--scope board|list|task] [--format lists|single] [--list-id N] [--task-id N] [--max-age-days N] [--limit N] [--clean] [--out file.md|dir/]

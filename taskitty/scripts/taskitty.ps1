@@ -1066,9 +1066,58 @@ switch ($Action) {
         Write-Output "Unassigned member $Arg2 from board $Arg1"
     }
 
+    "links" {
+        if (-not $Arg1) {
+            Write-Error 'Usage: taskitty links <task_id>'
+            exit 1
+        }
+        $links = Invoke-Taskitty -Method Post -Path "/v1/tasks/$Arg1/links" -Body @{}
+        $mentions = Invoke-Taskitty -Method Post -Path "/v1/tasks/$Arg1/mentions" -Body @{}
+        foreach ($l in $links.links) {
+            $verb = switch ($l.kind) {
+                "related" { "related to" }
+                "blocks" { if ($l.outgoing) { "blocks" } else { "blocked by" } }
+                "parent" { if ($l.outgoing) { "parent of" } else { "child of" } }
+                default { if ($l.outgoing) { "follow-up of" } else { "has follow-up" } }
+            }
+            Write-Output "link=$($l.id)  $verb #$($l.other_id) $($l.other_name)"
+        }
+        foreach ($m in $mentions.mentions) { Write-Output "mentions #$($m.id) $($m.name)" }
+        foreach ($m in $mentions.mentioned_in) { Write-Output "mentioned in #$($m.id) $($m.name)" }
+        if (-not $links.links -and -not $mentions.mentions -and -not $mentions.mentioned_in) { Write-Output "Task $Arg1 has no links or mentions" }
+    }
+
+    "link" {
+        if (-not $Arg1 -or -not $Arg2 -or $Arg3 -notin @("blocks", "related", "parent", "follow_up")) {
+            Write-Error 'Usage: taskitty link <from_task_id> <to_task_id> <blocks|related|parent|follow_up>'
+            exit 1
+        }
+        $result = Invoke-Taskitty -Method Post -Path "/v1/links" -Body @{ from = [int64]$Arg1; to = [int64]$Arg2; kind = $Arg3 }
+        Write-Output "Linked id=$($result.id): #$Arg1 $Arg3 #$Arg2"
+    }
+
+    "unlink" {
+        if (-not $Arg1) {
+            Write-Error 'Usage: taskitty unlink <link_id>'
+            exit 1
+        }
+        Invoke-Taskitty -Method Delete -Path "/v1/links/$Arg1" -Body @{} | Out-Null
+        Write-Output "Removed link $Arg1"
+    }
+
+    "graph-export" {
+        # Graphify node-link graph.json of the workspace; done tasks left out (use the Node launcher for filters).
+        $target = if ($Out) { $Out } else { Join-Path "graphify-out" "graph.json" }
+        $target = Join-Path (Get-Location).Path $target
+        $graph = Invoke-Taskitty -Method Post -Path "/v1/graph" -Body @{ format = "graphify"; filter = @{ hide_done = $true } }
+        New-Item -ItemType Directory -Force -Path (Split-Path $target) | Out-Null
+        $graph | ConvertTo-Json -Depth 20 | Set-Content -Path $target -Encoding UTF8
+        Write-Output "graph=$target nodes=$(@($graph.nodes).Count) links=$(@($graph.links).Count)"
+    }
+
     default {
         Write-Error "Unknown action: $Action"
-        Write-Output "Available actions: configure, configure-url, which, token, start-api (start), stop-api (stop), status, health, boards, create-board, create-list, delete-list, delete-board, workspace-groups, create-workspace, create-group, assign-group, project-config, board, add, move, move-list, move-board, done, undone, doing, on_hold, off_doing, off_on_hold, rename, description, start-date, due-date, list-tasks, task, comment, edit_comment, delete_comment, attach, comment-attach, tags, create-tag, tag-task, untag-task, members, create-member, member-task, unassign-member, board-member, unassign-board-member, delete, export-markdown"
+        Write-Output "Available actions: configure, configure-url, which, token, start-api (start), stop-api (stop), status, health, boards, create-board, create-list, delete-list, delete-board, workspace-groups, create-workspace, create-group, assign-group, project-config, board, add, move, move-list, move-board, done, undone, doing, on_hold, off_doing, off_on_hold, rename, description, start-date, due-date, list-tasks, task, comment, edit_comment, delete_comment, attach, comment-attach, tags, create-tag, tag-task, untag-task, members, create-member, member-task, unassign-member, board-member, unassign-board-member, delete, export-markdown, links, link, unlink, graph-export"
         exit 1
     }
 }

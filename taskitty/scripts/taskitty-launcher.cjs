@@ -789,6 +789,73 @@ async function cmdExportMarkdown(args) {
   else process.stdout.write(text);
 }
 
+// --- Connections graph and task links (task #341) ---------------------------------
+
+const LINK_KINDS = ['blocks', 'related', 'parent', 'follow_up'];
+
+async function cmdGraphExport(args) {
+  const usage = 'Usage: taskitty graph-export [--boards id,id] [--tags id,id] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--include-done] [--linked-only] [--max-nodes N] [--format graphify|taskitty] [--out file.json]\n' +
+    '            writes the workspace Connections graph; graphify (default) is Graphify node-link graph.json, default --out graphify-out/graph.json';
+  const ids = (v) => String(v).split(',').map((x) => Number(x.trim())).filter(Number.isInteger);
+  const filter = { hide_done: true };
+  let format = 'graphify';
+  let outPath = path.join('graphify-out', 'graph.json');
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === '--boards' && args[i + 1] !== undefined) filter.board_ids = ids(args[++i]);
+    else if (a === '--tags' && args[i + 1] !== undefined) filter.tag_ids = ids(args[++i]);
+    else if (a === '--from' && args[i + 1] !== undefined) filter.from = String(args[++i]);
+    else if (a === '--to' && args[i + 1] !== undefined) filter.to = String(args[++i]);
+    else if (a === '--include-done') filter.hide_done = false;
+    else if (a === '--linked-only') filter.linked_only = true;
+    else if (a === '--max-nodes' && args[i + 1] !== undefined) filter.max_nodes = Number(args[++i]);
+    else if (a === '--format') {
+      format = String(args[++i] ?? '');
+      if (!['graphify', 'taskitty'].includes(format)) fail(`${usage}\n--format must be graphify or taskitty`);
+    } else if (a === '--out' && args[i + 1] !== undefined) outPath = String(args[++i]);
+    else fail(`${usage}\nunknown argument ${a}`);
+  }
+  const r = await api('POST', '/v1/graph', { filter, format });
+  const dir = path.dirname(path.resolve(outPath));
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(outPath, `${JSON.stringify(r, null, 2)}\n`);
+  const nodes = (r.nodes || []).length;
+  const links = (r.links || r.edges || []).length;
+  const truncated = format === 'graphify' ? Boolean(r.graph && r.graph.truncated) : Boolean(r.truncated);
+  console.log(`graph=${path.resolve(outPath)} format=${format} nodes=${nodes} links=${links} truncated=${truncated}`);
+}
+
+async function cmdLinks(args) {
+  if (!args[0]) fail('Usage: taskitty links <task_id>');
+  const r = await api('POST', `/v1/tasks/${args[0]}/links`, {});
+  const m = await api('POST', `/v1/tasks/${args[0]}/mentions`, {});
+  const describe = (l) => {
+    if (l.kind === 'related') return 'related to';
+    if (l.kind === 'blocks') return l.outgoing ? 'blocks' : 'blocked by';
+    if (l.kind === 'parent') return l.outgoing ? 'parent of' : 'child of';
+    return l.outgoing ? 'follow-up of' : 'has follow-up';
+  };
+  if (!r.links.length && !m.mentions.length && !m.mentioned_in.length) { console.log(`Task ${args[0]} has no links or mentions`); return; }
+  for (const l of r.links) console.log(`link=${l.id}  ${describe(l)} #${l.other_id} ${l.other_name}${l.other_done ? ' (done)' : ''}`);
+  for (const x of m.mentions) console.log(`mentions #${x.id} ${x.name}${x.done ? ' (done)' : ''}`);
+  for (const x of m.mentioned_in) console.log(`mentioned in #${x.id} ${x.name}${x.done ? ' (done)' : ''}`);
+}
+
+async function cmdLink(args) {
+  const usage = `Usage: taskitty link <from_task_id> <to_task_id> <${LINK_KINDS.join('|')}>  (from blocks / is parent of / is follow-up of to)`;
+  if (args.length < 3) fail(usage);
+  const kind = String(args[2]).toLowerCase();
+  if (!LINK_KINDS.includes(kind)) fail(`${usage}\nunknown kind ${args[2]}`);
+  const r = await api('POST', '/v1/links', { from: Number(args[0]), to: Number(args[1]), kind });
+  console.log(`Linked id=${r.id}: #${r.from} ${kind} #${r.to}`);
+}
+
+async function cmdUnlink(args) {
+  if (!args[0]) fail('Usage: taskitty unlink <link_id>  (ids come from `links <task_id>`)');
+  await api('DELETE', `/v1/links/${args[0]}`, {});
+  console.log(`Removed link ${args[0]}`);
+}
+
 async function cmdReportText(args) {
   const usage = 'Usage: taskitty report-text <progress|changelog|roadmap> [filters]\n' +
     '            --boards id,id --tags name,name --milestones id,id --versions v1,v2\n' +
@@ -1288,6 +1355,10 @@ switch (action) {
   case 'delete': run(() => cmdDelete(rest)); break;
   case 'export-markdown': run(() => cmdExportMarkdown(rest)); break;
   case 'report-text': run(() => cmdReportText(rest)); break;
+  case 'graph-export': run(() => cmdGraphExport(rest)); break;
+  case 'links': run(() => cmdLinks(rest)); break;
+  case 'link': run(() => cmdLink(rest)); break;
+  case 'unlink': run(() => cmdUnlink(rest)); break;
   case 'release': run(() => cmdRelease(rest)); break;
   case 'version': run(() => cmdVersion(rest)); break;
   case 'agent-context': run(cmdAgentContext); break;
@@ -1317,6 +1388,8 @@ switch (action) {
     console.log('Export    : export-markdown <board_id> [--scope board|list|task] [--format lists|single] [--list-id N|--task-id N] [--max-age-days N|--limit N|--clean] [--out file.md|dir/]');
     console.log('            filters like the GUI: --tags id,id --members id,id --milestones id,id --versions v1,v2 --due any|overdue|today --hide-hidden');
     console.log('Reports   : report-text <progress|changelog|roadmap> [--boards id,id] [--tags name,name] [--versions v1,v2] [--from-date YYYY-MM-DD] [--to-date YYYY-MM-DD]');
+    console.log('Links     : links <task_id> | link <from_id> <to_id> <blocks|related|parent|follow_up> | unlink <link_id>');
+    console.log('Graph     : graph-export [--boards id,id] [--tags id,id] [--from D] [--to D] [--include-done] [--linked-only] [--format graphify|taskitty] [--out graphify-out/graph.json]');
     console.log('Activity  : activity [--days N | --from YYYY-MM-DD [--to YYYY-MM-DD]] [--boards id,id] [--upcoming-days N]');
     console.log('            calendar view by local day: done, worked on, added, starts/due, then upcoming and overdue');
     console.log('Context   : agent-context prints SOUL.md, USER.md and the workspace project prompt (read it first)');
