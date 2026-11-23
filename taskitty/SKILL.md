@@ -46,7 +46,7 @@ Use the **skill and MCP together**, with distinct responsibilities:
 
 Default sequence: find the target project's `taskitty.json`; read the current
 board export; use MCP with that config's `databasePath` on every
-workspace-scoped call; inspect the board/task; transition an implementation
+workspace-scoped call; inspect the board/task (including its links: blockers and parent); transition an implementation
 task to `doing`; implement and verify; add a factual progress comment and
 reflection; then either mark it `done` or use **Under Review** for a genuine
 human decision. At session end, move anything unfinished you leave in Doing back
@@ -118,16 +118,28 @@ Never use raw HTTP, browser automation, Playwright, destructive deletes, or a ma
 
 When the user asks what they worked on (yesterday, this week, on a given day) or what's coming up, call `taskitty_activity`. It lists tasks by local day: done, worked on, added and scheduled (start/due), then overdue and upcoming ones. `days: 2` means yesterday and today; `from`/`to` take `YYYY-MM-DD`. Call it once per workspace (every `taskitty.json` in reach) to see work across projects, and answer from its output instead of guessing. CLI: `activity [--days N | --from D --to D] [--boards id,id] [--upcoming-days N]`.
 
-## Task links and graph
+## Connections (task links and graph)
 
-Tasks can be linked explicitly: `blocks` (from blocks to), `parent` (from is the parent of to; one parent per task),
-`related` (no direction) and `follow_up` (from is a follow-up of to; reflections write these for every task they
-create). When you learn that one task blocks, belongs under or relates to another, record it with
-`taskitty_link_tasks`; read a task's links and `#tk:task` mentions with `taskitty_list_task_links`, remove one with
-`taskitty_unlink_tasks`. Refused links (self, missing task, duplicate, second parent, parent/blocks loop) come back
-with the reason. The desktop **Connections** view draws all of it. `taskitty_export_graph` writes the workspace graph
-as a Graphify-compatible `graph.json` into the project's `graphify-out/` folder (done tasks left out unless
-`includeDone`). CLI: `links <task_id>`, `link <from> <to> <kind>`, `unlink <link_id>`, `graph-export [--out file]`.
+Tasks are connected, and the desktop **Connections** view (left rail) draws it: tasks with their tags, milestones,
+people and boards, plus every task link and `#tk:task` mention. Keep those connections true while you work, so the
+user (and the next agent) can see what depends on what:
+
+- **Before starting**, read the task: `taskitty_get_task` lists its links ("blocked by #12", "child of #7") and
+  mentions. `taskitty_start_work` also warns when unfinished tasks still block it. If a blocker is not done, say so
+  and ask before working around it.
+- **Split work into subtasks** with `parentTaskId` on `taskitty_capture` / `taskitty_create_task` (or
+  `taskitty_link_tasks` kind `parent`): one parent per task, no loops.
+- **Record dependencies** with `blockedByTaskIds` (or kind `blocks`: from blocks to) as soon as you learn that one
+  task has to wait for another. Use kind `related` for work that belongs together without an order.
+- **Mention** related tasks as `#tk:task:<id>` in descriptions and comments; those become mention lines in the graph.
+- Reflections link every follow-up and todo task they create back to the source (`follow_up`) automatically.
+
+Refused links (self, missing task, duplicate, second parent, parent/blocks loop) come back with the reason.
+`taskitty_list_task_links` lists a task's links with ids (and marks tasks in the trash), `taskitty_unlink_tasks`
+removes one. `taskitty_export_graph` writes the workspace graph as a Graphify-compatible `graph.json` into the
+project's `graphify-out/` folder (done tasks left out unless `includeDone`; `linkedOnly` keeps only connected tasks)
+when you need to plan across many tasks. CLI: `task <id>` (shows links), `links <task_id>`, `link <from> <to> <kind>`,
+`unlink <link_id>`, `graph-export [--out file]`.
 
 ## Releases and versions
 
