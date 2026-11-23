@@ -1080,7 +1080,8 @@ switch ($Action) {
                 "parent" { if ($l.outgoing) { "parent of" } else { "child of" } }
                 default { if ($l.outgoing) { "follow-up of" } else { "has follow-up" } }
             }
-            Write-Output "link=$($l.id)  $verb #$($l.other_id) $($l.other_name)"
+            $trash = if ($l.other_trashed) { " (in trash)" } else { "" }
+            Write-Output "link=$($l.id)  $verb #$($l.other_id) $($l.other_name)$trash"
         }
         foreach ($m in $mentions.mentions) { Write-Output "mentions #$($m.id) $($m.name)" }
         foreach ($m in $mentions.mentioned_in) { Write-Output "mentioned in #$($m.id) $($m.name)" }
@@ -1111,7 +1112,8 @@ switch ($Action) {
         $target = Join-Path (Get-Location).Path $target
         $graph = Invoke-Taskitty -Method Post -Path "/v1/graph" -Body @{ format = "graphify"; filter = @{ hide_done = $true } }
         New-Item -ItemType Directory -Force -Path (Split-Path $target) | Out-Null
-        $graph | ConvertTo-Json -Depth 20 | Set-Content -Path $target -Encoding UTF8
+        # UTF-8 without BOM: Windows PowerShell 5.1 writes a BOM with -Encoding UTF8, which breaks Python json.load.
+        [System.IO.File]::WriteAllText($target, ($graph | ConvertTo-Json -Depth 20), (New-Object System.Text.UTF8Encoding $false))
         Write-Output "graph=$target nodes=$(@($graph.nodes).Count) links=$(@($graph.links).Count)"
     }
 

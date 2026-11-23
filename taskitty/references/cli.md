@@ -163,6 +163,7 @@ See `workspace.md` for configuration behavior.
 ## Task links and graph
 
 links <task_id>                                   explicit links (with link ids) plus #tk:task mentions
+task <task_id>                                    also lists the task's links and mentions (blockers at a glance)
 link <from_id> <to_id> <blocks|related|parent|follow_up>
 unlink <link_id>
 graph-export [--boards id,id] [--tags id,id] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--include-done] [--linked-only] [--max-nodes N] [--format graphify|taskitty] [--out graphify-out/graph.json]

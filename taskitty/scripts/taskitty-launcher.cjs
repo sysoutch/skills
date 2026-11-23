@@ -452,6 +452,19 @@ async function api(method, p, body = null) {
   try { return JSON.parse(text); } catch { return text; }
 }
 
+/// Like api() but returns null instead of exiting on an HTTP error (optional extras).
+async function apiQuiet(method, p, body = null) {
+  const workspace = resolveWorkspace();
+  if (body && workspace && !('workspace' in body)) body = Object.assign({}, body, { workspace });
+  const res = await fetch(`${API_URL}${p}`, {
+    method,
+    headers: Object.assign({ Authorization: `Bearer ${readToken()}` }, body ? { 'Content-Type': 'application/json' } : {}),
+    body: body === null ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
 async function cmdHealth() {
   const r = await api('GET', '/v1/health');
   console.log(`Health OK: ${r.ok} service=${r.service}`);
@@ -796,19 +809,34 @@ const LINK_KINDS = ['blocks', 'related', 'parent', 'follow_up'];
 async function cmdGraphExport(args) {
   const usage = 'Usage: taskitty graph-export [--boards id,id] [--tags id,id] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--include-done] [--linked-only] [--max-nodes N] [--format graphify|taskitty] [--out file.json]\n' +
     '            writes the workspace Connections graph; graphify (default) is Graphify node-link graph.json, default --out graphify-out/graph.json';
-  const ids = (v) => String(v).split(',').map((x) => Number(x.trim())).filter(Number.isInteger);
+  // Malformed values fail loudly: `--boards abc` must not silently mean "all boards".
+  const ids = (flag, v) => {
+    const parts = String(v).split(',').map((x) => x.trim()).filter(Boolean);
+    if (!parts.length || parts.some((x) => !/^\d+$/.test(x) || Number(x) <= 0)) fail(`${usage}\n${flag} takes positive ids separated by commas, got "${v}"`);
+    return parts.map(Number);
+  };
+  const day = (flag, v) => {
+    const text = String(v);
+    const parsed = new Date(`${text}T00:00:00Z`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(text) || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== text) fail(`${usage}\n${flag} takes a date as YYYY-MM-DD, got "${text}"`);
+    return text;
+  };
   const filter = { hide_done: true };
   let format = 'graphify';
   let outPath = path.join('graphify-out', 'graph.json');
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
-    if (a === '--boards' && args[i + 1] !== undefined) filter.board_ids = ids(args[++i]);
-    else if (a === '--tags' && args[i + 1] !== undefined) filter.tag_ids = ids(args[++i]);
-    else if (a === '--from' && args[i + 1] !== undefined) filter.from = String(args[++i]);
-    else if (a === '--to' && args[i + 1] !== undefined) filter.to = String(args[++i]);
+    if (a === '--boards' && args[i + 1] !== undefined) filter.board_ids = ids(a, args[++i]);
+    else if (a === '--tags' && args[i + 1] !== undefined) filter.tag_ids = ids(a, args[++i]);
+    else if (a === '--from' && args[i + 1] !== undefined) filter.from = day(a, args[++i]);
+    else if (a === '--to' && args[i + 1] !== undefined) filter.to = day(a, args[++i]);
     else if (a === '--include-done') filter.hide_done = false;
     else if (a === '--linked-only') filter.linked_only = true;
-    else if (a === '--max-nodes' && args[i + 1] !== undefined) filter.max_nodes = Number(args[++i]);
+    else if (a === '--max-nodes' && args[i + 1] !== undefined) {
+      const n = String(args[++i]);
+      if (!/^\d+$/.test(n) || Number(n) <= 0) fail(`${usage}\n--max-nodes takes a positive whole number, got "${n}"`);
+      filter.max_nodes = Number(n);
+    }
     else if (a === '--format') {
       format = String(args[++i] ?? '');
       if (!['graphify', 'taskitty'].includes(format)) fail(`${usage}\n--format must be graphify or taskitty`);
@@ -825,18 +853,25 @@ async function cmdGraphExport(args) {
   console.log(`graph=${path.resolve(outPath)} format=${format} nodes=${nodes} links=${links} truncated=${truncated}`);
 }
 
+/// How a task link reads from the task it was listed for.
+function describeLink(l) {
+  if (l.kind === 'related') return 'related to';
+  if (l.kind === 'blocks') return l.outgoing ? 'blocks' : 'blocked by';
+  if (l.kind === 'parent') return l.outgoing ? 'parent of' : 'child of';
+  return l.outgoing ? 'follow-up of' : 'has follow-up';
+}
+
+function linkState(l) {
+  return `${l.other_done ? ' (done)' : ''}${l.other_trashed ? ' (in trash)' : ''}`;
+}
+
 async function cmdLinks(args) {
   if (!args[0]) fail('Usage: taskitty links <task_id>');
   const r = await api('POST', `/v1/tasks/${args[0]}/links`, {});
   const m = await api('POST', `/v1/tasks/${args[0]}/mentions`, {});
-  const describe = (l) => {
-    if (l.kind === 'related') return 'related to';
-    if (l.kind === 'blocks') return l.outgoing ? 'blocks' : 'blocked by';
-    if (l.kind === 'parent') return l.outgoing ? 'parent of' : 'child of';
-    return l.outgoing ? 'follow-up of' : 'has follow-up';
-  };
+  const describe = describeLink;
   if (!r.links.length && !m.mentions.length && !m.mentioned_in.length) { console.log(`Task ${args[0]} has no links or mentions`); return; }
-  for (const l of r.links) console.log(`link=${l.id}  ${describe(l)} #${l.other_id} ${l.other_name}${l.other_done ? ' (done)' : ''}`);
+  for (const l of r.links) console.log(`link=${l.id}  ${describe(l)} #${l.other_id} ${l.other_name}${linkState(l)}`);
   for (const x of m.mentions) console.log(`mentions #${x.id} ${x.name}${x.done ? ' (done)' : ''}`);
   for (const x of m.mentioned_in) console.log(`mentioned in #${x.id} ${x.name}${x.done ? ' (done)' : ''}`);
 }
@@ -1210,6 +1245,15 @@ async function cmdTask(args) {
   if (tagNames) console.log(`  tags: ${tagNames}`);
   const memberNames = (t.members || []).map((x) => x.name).join(', ');
   if (memberNames) console.log(`  members: ${memberNames}`);
+  // Connections (task links and #tk:task mentions), so a task read shows its blockers too.
+  // Older API builds without the routes simply print nothing here.
+  try {
+    const links = await apiQuiet('POST', `/v1/tasks/${r.id}/links`, {});
+    for (const l of (links && links.links) || []) console.log(`  link ${l.id}: ${describeLink(l)} #${l.other_id} ${l.other_name}${linkState(l)}`);
+    const mentions = await apiQuiet('POST', `/v1/tasks/${r.id}/mentions`, {});
+    for (const x of (mentions && mentions.mentions) || []) console.log(`  mentions #${x.id} ${x.name}${x.done ? ' (done)' : ''}`);
+    for (const x of (mentions && mentions.mentioned_in) || []) console.log(`  mentioned in #${x.id} ${x.name}${x.done ? ' (done)' : ''}`);
+  } catch {}
   for (const c of t.comments || []) {
     const author = c.author_name ? ` by ${c.author_name}` : '';
     console.log(`  Comment ${c.id}[${c.added_datetime}]${author}${c.edited_datetime && c.edited_datetime !== c.added_datetime ? ' (edited)' : ''}`);
